@@ -116,3 +116,13 @@ CREATE TABLE BeslenmePlani (
     FOREIGN KEY (DietitianID) REFERENCES Dietitians(DietitianID)
 );
 GO
+
+-- 10. Plan Öğün Tablosu
+CREATE TABLE PlanOgun (
+    PlanOgunID INT PRIMARY KEY IDENTITY(1,1),
+    PlanID INT NOT NULL,
+    Gun DATE NOT NULL,
+    Ogunler NVARCHAR(MAX) NOT NULL,
+    FOREIGN KEY (PlanID) REFERENCES BeslenmePlani(PlanID) ON DELETE CASCADE
+);
+GO
