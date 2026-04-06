@@ -99,3 +99,20 @@ CREATE TABLE MealFoods (
     FOREIGN KEY (FoodID) REFERENCES Foods(FoodID)
 );
 GO
+
+-- 9. Beslenme Planı
+CREATE TABLE BeslenmePlani (
+    PlanID INT PRIMARY KEY IDENTITY(1,1),
+    ClientID INT NOT NULL,
+    DietitianID INT NOT NULL,
+
+    PlanAdi NVARCHAR(100) NULL,
+    BaslangicTarihi DATE NOT NULL,
+    BitisTarihi DATE NULL,
+
+    OlusturmaTarihi DATETIME DEFAULT GETDATE(),
+
+    FOREIGN KEY (ClientID) REFERENCES Clients(ClientID) ON DELETE CASCADE,
+    FOREIGN KEY (DietitianID) REFERENCES Dietitians(DietitianID)
+);
+GO
