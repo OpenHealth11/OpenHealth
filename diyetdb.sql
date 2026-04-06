@@ -40,6 +40,8 @@ CREATE TABLE Clients (
     Height DECIMAL(5,2) NULL,
     StartWeight DECIMAL(5,2) NULL,
     TargetWeight DECIMAL(5,2) NULL,
+    Diseases NVARCHAR(MAX) NULL,
+    Allergies NVARCHAR(MAX) NULL,
     FOREIGN KEY (UserID) REFERENCES Users(UserID) ON DELETE CASCADE,
     FOREIGN KEY (DietitianID) REFERENCES Dietitians(DietitianID)
 );
