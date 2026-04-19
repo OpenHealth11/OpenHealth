@@ -88,7 +88,7 @@ app.post("/api/auth/register", async (req, res) => {
 
     return res.status(201).json({ token, user: publicUser(user) });
   } catch (e) {
-    console.error(e);
+    console.error("[register]", e);
     return res.status(500).json({ error: "Sunucu hatası." });
   }
 });
@@ -116,7 +116,15 @@ app.post("/api/auth/login", async (req, res) => {
       return res.status(403).json({ error: "Bu hesap seçtiğiniz rol ile eşleşmiyor." });
     }
 
-    const ok = await bcrypt.compare(password, user.passwordHash);
+    if (typeof user.passwordHash !== "string" || !user.passwordHash) {
+      return res.status(401).json({ error: "E-posta veya şifre hatalı." });
+    }
+    let ok = false;
+    try {
+      ok = await bcrypt.compare(password, user.passwordHash);
+    } catch {
+      return res.status(401).json({ error: "E-posta veya şifre hatalı." });
+    }
     if (!ok) {
       return res.status(401).json({ error: "E-posta veya şifre hatalı." });
     }
@@ -143,7 +151,7 @@ app.post("/api/auth/login", async (req, res) => {
 
     return res.json({ token, user: publicUser(user) });
   } catch (e) {
-    console.error(e);
+    console.error("[login]", e);
     return res.status(500).json({ error: "Sunucu hatası." });
   }
 });
