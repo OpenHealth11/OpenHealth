@@ -1,6 +1,8 @@
+import { useNavigate } from "react-router-dom";
 import "./HomePage.css";
 
-function HomePage({ openLogin, openRegister }) {
+function HomePage() {
+  const navigate = useNavigate();
   return (
     <div className="page">
       <header className="navbar">
@@ -9,10 +11,13 @@ function HomePage({ openLogin, openRegister }) {
         <nav className="nav-links">
           <a href="#anasayfa">Anasayfa</a>
           <a href="#hakkinda">Hakkında</a>
-          <button className="nav-outline-btn" onClick={openLogin}>
+          <button className="nav-outline-btn" onClick={() => navigate("/login")}>
             Giriş Yap
           </button>
-          <button className="nav-solid-btn" onClick={openRegister}>
+          <button
+            className="nav-solid-btn"
+            onClick={() => navigate("/login?mode=register")}
+          >
             Kayıt Ol
           </button>
         </nav>
@@ -34,10 +39,13 @@ function HomePage({ openLogin, openRegister }) {
           </p>
 
           <div className="hero-buttons">
-            <button className="primary-btn" onClick={openLogin}>
+            <button className="primary-btn" onClick={() => navigate("/login")}>
               Giriş Yap
             </button>
-            <button className="secondary-btn" onClick={openRegister}>
+            <button
+              className="secondary-btn"
+              onClick={() => navigate("/login?mode=register")}
+            >
               Kayıt Ol
             </button>
           </div>
@@ -192,8 +200,8 @@ function HomePage({ openLogin, openRegister }) {
           <div className="footer-menu">
             <a href="#anasayfa">Anasayfa</a>
             <a href="#hakkinda">Hakkında</a>
-            <button onClick={openLogin}>Giriş Yap</button>
-            <button onClick={openRegister}>Kayıt Ol</button>
+            <button onClick={() => navigate("/login")}>Giriş Yap</button>
+            <button onClick={() => navigate("/login?mode=register")}>Kayıt Ol</button>
           </div>
         </div>
 
