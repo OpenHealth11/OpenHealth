@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+import { validateEmail } from "../validation.js";
 import "./AuthPage.css";
 
 function AuthPage({
@@ -8,7 +10,174 @@ function AuthPage({
   setRole,
   forgotPassword,
   setForgotPassword,
+  onAuthSuccess,
 }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetMsg, setResetMsg] = useState("");
+  const [registerNotice, setRegisterNotice] = useState("");
+
+  useEffect(() => {
+    setAuthError("");
+    if (authMode === "register") setRegisterNotice("");
+  }, [authMode, role]);
+
+  function messageFromBody(status, raw) {
+    try {
+      const j = JSON.parse(raw);
+      if (j && typeof j.error === "string") return j.error;
+    } catch {
+      /* not JSON */
+    }
+    if (status === 404 || status === 502) {
+      return "API yanıt vermiyor. Ayrı bir terminalde `npm run server` çalıştır (port 3001), ardından `npm run dev` ile sayfayı aç.";
+    }
+    return raw.trim()
+      ? `Sunucu (${status}): ${raw.slice(0, 200)}`
+      : `İstek başarısız (${status}).`;
+  }
+
+  function submitForgotPassword() {
+    setResetMsg("");
+    setAuthError("");
+    const check = validateEmail(resetEmail);
+    if (!check.ok) {
+      setAuthError(check.error);
+      return;
+    }
+    setResetMsg("Eğer bu e-posta kayıtlıysa sıfırlama bağlantısı gönderildi.");
+  }
+
+  async function submitLogin() {
+    if (role !== "danisan" && role !== "diyetisyen") return;
+    setAuthError("");
+    if (!password) {
+      setAuthError("E-posta ve şifre gerekli.");
+      return;
+    }
+    const emailCheck = validateEmail(email);
+    if (!emailCheck.ok) {
+      setAuthError(emailCheck.error);
+      return;
+    }
+    setAuthLoading(true);
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: emailCheck.value,
+          password,
+          role,
+        }),
+      });
+      const raw = await res.text();
+      let data = {};
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {
+        setAuthError(
+          res.status === 404 || res.status === 502
+            ? "API yanıt vermiyor. `npm run server` çalıştır (3001), ardından Vite ile sayfayı aç (5173)."
+            : `Sunucu (${res.status}): ${raw.slice(0, 200)}`
+        );
+        return;
+      }
+      if (!res.ok) {
+        setAuthError(
+          data.error ||
+            "Giriş başarısız. Rol seçimin hesaptaki rol ile aynı mı kontrol et."
+        );
+        return;
+      }
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
+      onAuthSuccess?.(data);
+    } catch {
+      setAuthError(
+        "Bağlantı kurulamadı. Node API açık mı? (`npm run server` → http://localhost:3001)"
+      );
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function submitRegister() {
+    if (role !== "danisan" && role !== "diyetisyen") return;
+    setAuthError("");
+    if (password !== passwordConfirm) {
+      setAuthError("Şifreler eşleşmiyor.");
+      return;
+    }
+    if (password.length < 8) {
+      setAuthError("Şifre en az 8 karakter olmalı.");
+      return;
+    }
+    if (!fullName.trim()) {
+      setAuthError("Ad soyad zorunlu.");
+      return;
+    }
+    const emailCheck = validateEmail(email);
+    if (!emailCheck.ok) {
+      setAuthError(emailCheck.error);
+      return;
+    }
+    setAuthLoading(true);
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: emailCheck.value,
+          password,
+          passwordConfirm,
+          fullName: fullName.trim(),
+          role,
+        }),
+      });
+      const raw = await res.text();
+      let data = {};
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {
+        setAuthError(messageFromBody(res.status, raw));
+        return;
+      }
+      if (!res.ok) {
+        setAuthError(data.error || messageFromBody(res.status, raw));
+        return;
+      }
+      if (data.token) {
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("user", JSON.stringify(data.user));
+        onAuthSuccess?.(data);
+      } else {
+        setRegisterNotice(
+          typeof data.message === "string"
+            ? data.message
+            : "Kaydınız alındı. Hesabınız admin onayından sonra aktif olacak."
+        );
+        switchMode("login");
+        setRole("");
+        setPassword("");
+        setPasswordConfirm("");
+        setFullName("");
+        setEmail("");
+      }
+    } catch {
+      setAuthError(
+        "Bağlantı kurulamadı. Node API açık mı? (`npm run server` → http://localhost:3001)"
+      );
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
   return (
     <div className="auth-page">
       <div className="auth-wrapper">
@@ -20,13 +189,17 @@ function AuthPage({
 
             <div className="mode-switch">
               <button
+                type="button"
                 className={authMode === "login" ? "mode-btn active" : "mode-btn"}
+                disabled={authLoading}
                 onClick={() => switchMode("login")}
               >
                 Giriş Yap
               </button>
               <button
+                type="button"
                 className={authMode === "register" ? "mode-btn active" : "mode-btn"}
+                disabled={authLoading}
                 onClick={() => switchMode("register")}
               >
                 Kayıt Ol
@@ -35,33 +208,56 @@ function AuthPage({
           </div>
 
           <div className="auth-panel">
+            {registerNotice && authMode === "login" && !forgotPassword ? (
+              <p className="auth-success">{registerNotice}</p>
+            ) : null}
+
             {forgotPassword && (
               <div className="form-wrap">
                 <button
                   className="text-btn back-inline"
-                  onClick={() => setForgotPassword(false)}
+                  onClick={() => {
+                    setForgotPassword(false);
+                    setResetEmail("");
+                    setResetMsg("");
+                    setAuthError("");
+                  }}
                 >
                   ← Girişe Dön
                 </button>
 
                 <h2 className="form-title">Şifre Sıfırlama</h2>
                 <p className="form-subtitle">
-                  E-posta adresinizi giriniz. Eğer bu e-posta adresine ait bir
-                  hesap varsa, şifre sıfırlama bağlantısı gönderilecektir.
+                  Kayıtlı e-posta adresinizi giriniz.
                 </p>
 
-                <div className="form-group">
-                  <label>E-posta</label>
-                  <input
-                    className="form-control"
-                    type="email"
-                    placeholder="ornek@mail.com"
-                  />
-                </div>
+                {authError && <p className="auth-error">{authError}</p>}
+                {resetMsg && <p className="auth-success">{resetMsg}</p>}
 
-                <button className="submit-btn">
-                  Sıfırlama Bağlantısı Gönder
-                </button>
+                {!resetMsg && (
+                  <>
+                    <div className="form-group">
+                      <label>E-posta</label>
+                      <input
+                        className="form-control"
+                        type="email"
+                        placeholder="ornek@mail.com"
+                        value={resetEmail}
+                        onChange={(e) => setResetEmail(e.target.value)}
+                        autoComplete="email"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      className="submit-btn"
+                      disabled={authLoading}
+                      onClick={submitForgotPassword}
+                    >
+                      {authLoading ? "Gönderiliyor…" : "Sıfırlama Bağlantısı Gönder"}
+                    </button>
+                  </>
+                )}
               </div>
             )}
 
@@ -131,6 +327,14 @@ function AuthPage({
                     : "Danışan hesabı oluşturunuz."}
                 </p>
 
+                {authError ? <p className="auth-error">{authError}</p> : null}
+
+                {authMode === "register" && (
+                  <p className="auth-hint">
+                    Kayıt: ad soyad ve e-posta zorunlu; şifre en az 8 karakterli olmalıdır.
+                  </p>
+                )}
+
                 {authMode === "register" && (
                   <div className="form-group">
                     <label>Ad Soyad</label>
@@ -138,6 +342,9 @@ function AuthPage({
                       className="form-control"
                       type="text"
                       placeholder="Adınızı ve soyadınızı giriniz"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      autoComplete="name"
                     />
                   </div>
                 )}
@@ -148,6 +355,9 @@ function AuthPage({
                     className="form-control"
                     type="email"
                     placeholder="ornek@mail.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="email"
                   />
                 </div>
 
@@ -157,6 +367,11 @@ function AuthPage({
                     className="form-control"
                     type="password"
                     placeholder="Şifrenizi giriniz"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete={
+                      authMode === "login" ? "current-password" : "new-password"
+                    }
                   />
 
                   {authMode === "login" && (
@@ -176,14 +391,26 @@ function AuthPage({
                       className="form-control"
                       type="password"
                       placeholder="Şifrenizi tekrar giriniz"
+                      value={passwordConfirm}
+                      onChange={(e) => setPasswordConfirm(e.target.value)}
+                      autoComplete="new-password"
                     />
                   </div>
                 )}
 
-                <button className="submit-btn">
-                  {authMode === "login"
-                    ? "Danışan Girişi Yap"
-                    : "Danışan Kaydı Oluştur"}
+                <button
+                  type="button"
+                  className="submit-btn"
+                  disabled={authLoading}
+                  onClick={authMode === "login" ? submitLogin : submitRegister}
+                >
+                  {authLoading
+                    ? authMode === "login"
+                      ? "Giriş yapılıyor…"
+                      : "Kayıt olunuyor…"
+                    : authMode === "login"
+                      ? "Danışan Girişi Yap"
+                      : "Danışan Kaydı Oluştur"}
                 </button>
 
                 <p className="switch-text">
@@ -220,6 +447,14 @@ function AuthPage({
                     : "Diyetisyen hesabı oluşturunuz."}
                 </p>
 
+                {authError ? <p className="auth-error">{authError}</p> : null}
+
+                {authMode === "register" && (
+                  <p className="auth-hint">
+                    Kayıt: ad soyad ve e-posta zorunlu; şifre en az 8 karakterli olmalıdır.
+                  </p>
+                )}
+
                 {authMode === "register" && (
                   <div className="form-group">
                     <label>Ad Soyad</label>
@@ -227,6 +462,9 @@ function AuthPage({
                       className="form-control"
                       type="text"
                       placeholder="Adınızı ve soyadınızı giriniz"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      autoComplete="name"
                     />
                   </div>
                 )}
@@ -237,6 +475,9 @@ function AuthPage({
                     className="form-control"
                     type="email"
                     placeholder="ornek@mail.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="email"
                   />
                 </div>
 
@@ -246,6 +487,11 @@ function AuthPage({
                     className="form-control"
                     type="password"
                     placeholder="Şifrenizi giriniz"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete={
+                      authMode === "login" ? "current-password" : "new-password"
+                    }
                   />
 
                   {authMode === "login" && (
@@ -265,14 +511,26 @@ function AuthPage({
                       className="form-control"
                       type="password"
                       placeholder="Şifrenizi tekrar giriniz"
+                      value={passwordConfirm}
+                      onChange={(e) => setPasswordConfirm(e.target.value)}
+                      autoComplete="new-password"
                     />
                   </div>
                 )}
 
-                <button className="submit-btn">
-                  {authMode === "login"
-                    ? "Diyetisyen Girişi Yap"
-                    : "Diyetisyen Kaydı Oluştur"}
+                <button
+                  type="button"
+                  className="submit-btn"
+                  disabled={authLoading}
+                  onClick={authMode === "login" ? submitLogin : submitRegister}
+                >
+                  {authLoading
+                    ? authMode === "login"
+                      ? "Giriş yapılıyor…"
+                      : "Kayıt olunuyor…"
+                    : authMode === "login"
+                      ? "Diyetisyen Girişi Yap"
+                      : "Diyetisyen Kaydı Oluştur"}
                 </button>
 
                 <p className="switch-text">

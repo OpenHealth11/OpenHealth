@@ -1,3 +1,25 @@
+.auth-error {
+  color: #c62828;
+  font-size: 0.9rem;
+  margin: 0 0 0.75rem;
+}
+
+.auth-success {
+  color: #2e7d32;
+  font-size: 0.9rem;
+  margin: 0 0 0.75rem;
+  background: #edf7ee;
+  padding: 10px 14px;
+  border-radius: 10px;
+}
+
+.auth-hint {
+  color: #555;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  margin: 0 0 1rem;
+}
+
 .auth-page {
   min-height: 100vh;
   display: flex;
