@@ -37,6 +37,9 @@ function AuthPage({
     if (status === 404 || status === 502) {
       return "API yanıt vermiyor. Ayrı bir terminalde `npm run server` çalıştır (port 3001), ardından `npm run dev` ile sayfayı aç.";
     }
+    if (status === 500 && !raw.trim()) {
+      return "Sunucu hatası (500). `npm run server` çalışan terminaldeki kırmızı log satırına bak.";
+    }
     return raw.trim()
       ? `Sunucu (${status}): ${raw.slice(0, 200)}`
       : `İstek başarısız (${status}).`;
@@ -153,9 +156,21 @@ function AuthPage({
         return;
       }
       if (data.token) {
-        localStorage.setItem("token", data.token);
-        localStorage.setItem("user", JSON.stringify(data.user));
-        onAuthSuccess?.(data);
+        if (role === "danisan") {
+          setRegisterNotice(
+            "Kayıt tamamlandı. Giriş bilgilerinizle giriş yapabilirsiniz."
+          );
+          switchMode("login");
+          setRole("");
+          setPassword("");
+          setPasswordConfirm("");
+          setFullName("");
+          setEmail("");
+        } else {
+          localStorage.setItem("token", data.token);
+          localStorage.setItem("user", JSON.stringify(data.user));
+          onAuthSuccess?.(data);
+        }
       } else {
         setRegisterNotice(
           typeof data.message === "string"
