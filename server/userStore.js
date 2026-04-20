@@ -35,7 +35,7 @@ export function createUser({ fullName, email, passwordHash, role }) {
   }
   const id = db.nextId++;
   const status = role === "diyetisyen" ? "pending" : "approved";
-  const user = {
+ const user = {
   id,
   fullName,
   email: email.trim().toLowerCase(),
@@ -47,6 +47,15 @@ export function createUser({ fullName, email, passwordHash, role }) {
   hedef: "",
   alerji: "",
   hastalik: "",
+  kanGrubu: "",
+  dogumTarihi: "",
+  cinsiyet: "",
+  aktiviteSeviyesi: "",
+  kronikRahatsizlik: "",
+  kullanilanIlaclar: "",
+  ameliyatGecmisi: "",
+  sigaraAlkol: "",
+  saglikNotu: "",
   measurements: [],
   createdAt: new Date().toISOString(),
 };
@@ -140,6 +149,53 @@ export function updateUserProfile(userId, profileData) {
   user.hastalik = typeof profileData.hastalik === "string"
     ? profileData.hastalik.trim()
     : user.hastalik;
+
+  user.updatedAt = new Date().toISOString();
+
+  saveDb(db);
+  return user;
+}
+
+export function updateUserHealthInfo(userId, healthData) {
+  const db = loadDb();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+
+  user.kanGrubu = typeof healthData.kanGrubu === "string"
+    ? healthData.kanGrubu.trim()
+    : user.kanGrubu;
+
+  user.dogumTarihi = typeof healthData.dogumTarihi === "string"
+    ? healthData.dogumTarihi.trim()
+    : user.dogumTarihi;
+
+  user.cinsiyet = typeof healthData.cinsiyet === "string"
+    ? healthData.cinsiyet.trim()
+    : user.cinsiyet;
+
+  user.aktiviteSeviyesi = typeof healthData.aktiviteSeviyesi === "string"
+    ? healthData.aktiviteSeviyesi.trim()
+    : user.aktiviteSeviyesi;
+
+  user.kronikRahatsizlik = typeof healthData.kronikRahatsizlik === "string"
+    ? healthData.kronikRahatsizlik.trim()
+    : user.kronikRahatsizlik;
+
+  user.kullanilanIlaclar = typeof healthData.kullanilanIlaclar === "string"
+    ? healthData.kullanilanIlaclar.trim()
+    : user.kullanilanIlaclar;
+
+  user.ameliyatGecmisi = typeof healthData.ameliyatGecmisi === "string"
+    ? healthData.ameliyatGecmisi.trim()
+    : user.ameliyatGecmisi;
+
+  user.sigaraAlkol = typeof healthData.sigaraAlkol === "string"
+    ? healthData.sigaraAlkol.trim()
+    : user.sigaraAlkol;
+
+  user.saglikNotu = typeof healthData.saglikNotu === "string"
+    ? healthData.saglikNotu.trim()
+    : user.saglikNotu;
 
   user.updatedAt = new Date().toISOString();
 
