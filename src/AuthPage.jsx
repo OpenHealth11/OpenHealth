@@ -10,6 +10,7 @@ function AuthPage({
   setRole,
   forgotPassword,
   setForgotPassword,
+
   onAuthSuccess,
 }) {
   const [email, setEmail] = useState("");
@@ -32,13 +33,10 @@ function AuthPage({
       const j = JSON.parse(raw);
       if (j && typeof j.error === "string") return j.error;
     } catch {
-      /* not JSON */
+      
     }
     if (status === 404 || status === 502) {
       return "API yanıt vermiyor. Ayrı bir terminalde `npm run server` çalıştır (port 3001), ardından `npm run dev` ile sayfayı aç.";
-    }
-    if (status === 500 && !raw.trim()) {
-      return "Sunucu hatası (500). `npm run server` çalışan terminaldeki kırmızı log satırına bak.";
     }
     return raw.trim()
       ? `Sunucu (${status}): ${raw.slice(0, 200)}`
@@ -156,21 +154,9 @@ function AuthPage({
         return;
       }
       if (data.token) {
-        if (role === "danisan") {
-          setRegisterNotice(
-            "Kayıt tamamlandı. Giriş bilgilerinizle giriş yapabilirsiniz."
-          );
-          switchMode("login");
-          setRole("");
-          setPassword("");
-          setPasswordConfirm("");
-          setFullName("");
-          setEmail("");
-        } else {
-          localStorage.setItem("token", data.token);
-          localStorage.setItem("user", JSON.stringify(data.user));
-          onAuthSuccess?.(data);
-        }
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("user", JSON.stringify(data.user));
+        onAuthSuccess?.(data);
       } else {
         setRegisterNotice(
           typeof data.message === "string"
@@ -191,7 +177,8 @@ function AuthPage({
     } finally {
       setAuthLoading(false);
     }
-  }
+  } 
+
 
   return (
     <div className="auth-page">
@@ -312,11 +299,11 @@ function AuthPage({
                     <h2>Diyetisyen</h2>
                     <p>
                       Danışan yönetimi, plan oluşturma ve takip süreçleri için.
-                    </p>
+                    </p> 
                     <button
                       className="role-btn"
-                      onClick={() => setRole("diyetisyen")}
-                    >
+                        onClick={() => setRole("diyetisyen")}
+                    > 
                       {authMode === "login"
                         ? "Diyetisyen Girişi"
                         : "Diyetisyen Kaydı"}
