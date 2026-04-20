@@ -12,6 +12,8 @@ import {
   findUserByResetToken,
   updateUserPassword,
   updateUserProfile,
+  getUserMeasurements,
+  addUserMeasurement,
 } from "./userStore.js";
 
 if (!process.env.JWT_SECRET) {
@@ -310,6 +312,65 @@ app.put("/api/profile", (req, res) => {
     });
   } catch (e) {
     console.error("[profile-update]", e);
+    return res.status(500).json({ error: "Sunucu hatası." });
+  }
+});
+
+app.get("/api/measurements", (req, res) => {
+  const user = getUserFromAuthHeader(req);
+  if (!user) {
+    return res.status(401).json({ error: "Yetkisiz." });
+  }
+
+  const measurements = getUserMeasurements(user.id);
+  if (measurements === null) {
+    return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+  }
+
+  return res.json({ measurements });
+});
+
+app.post("/api/measurements", (req, res) => {
+  try {
+    const user = getUserFromAuthHeader(req);
+    if (!user) {
+      return res.status(401).json({ error: "Yetkisiz." });
+    }
+
+    const {
+      tarih,
+      kilo,
+      boy,
+      belCevresi,
+      kalcaCevresi,
+      yagOrani,
+      not,
+    } = req.body ?? {};
+
+    if (!tarih || typeof tarih !== "string") {
+      return res.status(400).json({ error: "Tarih gerekli." });
+    }
+
+    const measurement = addUserMeasurement(user.id, {
+      tarih,
+      kilo,
+      boy,
+      belCevresi,
+      kalcaCevresi,
+      yagOrani,
+      not,
+    });
+
+    if (!measurement) {
+      return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+    }
+
+    return res.status(201).json({
+      message: "Ölçüm kaydı eklendi.",
+      measurement,
+    });
+  } catch (e) {
+    console.error("[measurements-create]", e);
     return res.status(500).json({ error: "Sunucu hatası." });
   }
 });

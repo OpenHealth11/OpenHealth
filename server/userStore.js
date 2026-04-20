@@ -47,11 +47,48 @@ export function createUser({ fullName, email, passwordHash, role }) {
   hedef: "",
   alerji: "",
   hastalik: "",
+  measurements: [],
   createdAt: new Date().toISOString(),
 };
   db.users.push(user);
   saveDb(db);
   return user;
+}
+
+export function getUserMeasurements(userId) {
+  const db = loadDb();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+
+  return Array.isArray(user.measurements) ? user.measurements : [];
+}
+
+export function addUserMeasurement(userId, measurementData) {
+  const db = loadDb();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+
+  if (!Array.isArray(user.measurements)) {
+    user.measurements = [];
+  }
+
+  const measurement = {
+    id: Date.now(),
+    tarih: measurementData.tarih,
+    kilo: measurementData.kilo ?? "",
+    boy: measurementData.boy ?? "",
+    belCevresi: measurementData.belCevresi ?? "",
+    kalcaCevresi: measurementData.kalcaCevresi ?? "",
+    yagOrani: measurementData.yagOrani ?? "",
+    not: typeof measurementData.not === "string" ? measurementData.not.trim() : "",
+    createdAt: new Date().toISOString(),
+  };
+
+  user.measurements.push(measurement);
+  user.updatedAt = new Date().toISOString();
+
+  saveDb(db);
+  return measurement;
 }
 
 export function setResetToken(email, resetToken, resetTokenExpiresAt) {
