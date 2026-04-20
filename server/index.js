@@ -12,8 +12,8 @@ import {
   findUserByResetToken,
   updateUserPassword,
   updateUserProfile,
+  updateUserHealthInfo,
 } from "./userStore.js";
-
 if (!process.env.JWT_SECRET) {
   throw new Error("JWT_SECRET missing");
 }
@@ -40,6 +40,15 @@ function publicUser(u) {
     hedef: u.hedef ?? "",
     alerji: u.alerji ?? "",
     hastalik: u.hastalik ?? "",
+    kanGrubu: u.kanGrubu ?? "",
+    dogumTarihi: u.dogumTarihi ?? "",
+    cinsiyet: u.cinsiyet ?? "",
+    aktiviteSeviyesi: u.aktiviteSeviyesi ?? "",
+    kronikRahatsizlik: u.kronikRahatsizlik ?? "",
+    kullanilanIlaclar: u.kullanilanIlaclar ?? "",
+    ameliyatGecmisi: u.ameliyatGecmisi ?? "",
+    sigaraAlkol: u.sigaraAlkol ?? "",
+    saglikNotu: u.saglikNotu ?? "",
   };
 }
 
@@ -310,6 +319,80 @@ app.put("/api/profile", (req, res) => {
     });
   } catch (e) {
     console.error("[profile-update]", e);
+    return res.status(500).json({ error: "Sunucu hatası." });
+  }
+});
+
+app.get("/api/health-info", (req, res) => {
+  const user = getUserFromAuthHeader(req);
+  if (!user) {
+    return res.status(401).json({ error: "Yetkisiz." });
+  }
+
+  return res.json({
+    kanGrubu: user.kanGrubu ?? "",
+    dogumTarihi: user.dogumTarihi ?? "",
+    cinsiyet: user.cinsiyet ?? "",
+    aktiviteSeviyesi: user.aktiviteSeviyesi ?? "",
+    kronikRahatsizlik: user.kronikRahatsizlik ?? "",
+    kullanilanIlaclar: user.kullanilanIlaclar ?? "",
+    ameliyatGecmisi: user.ameliyatGecmisi ?? "",
+    sigaraAlkol: user.sigaraAlkol ?? "",
+    saglikNotu: user.saglikNotu ?? "",
+  });
+});
+
+app.put("/api/health-info", (req, res) => {
+  try {
+    const user = getUserFromAuthHeader(req);
+    if (!user) {
+      return res.status(401).json({ error: "Yetkisiz." });
+    }
+
+    const {
+      kanGrubu,
+      dogumTarihi,
+      cinsiyet,
+      aktiviteSeviyesi,
+      kronikRahatsizlik,
+      kullanilanIlaclar,
+      ameliyatGecmisi,
+      sigaraAlkol,
+      saglikNotu,
+    } = req.body ?? {};
+
+    const updated = updateUserHealthInfo(user.id, {
+      kanGrubu,
+      dogumTarihi,
+      cinsiyet,
+      aktiviteSeviyesi,
+      kronikRahatsizlik,
+      kullanilanIlaclar,
+      ameliyatGecmisi,
+      sigaraAlkol,
+      saglikNotu,
+    });
+
+    if (!updated) {
+      return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+    }
+
+    return res.json({
+      message: "Sağlık bilgileri güncellendi.",
+      healthInfo: {
+        kanGrubu: updated.kanGrubu ?? "",
+        dogumTarihi: updated.dogumTarihi ?? "",
+        cinsiyet: updated.cinsiyet ?? "",
+        aktiviteSeviyesi: updated.aktiviteSeviyesi ?? "",
+        kronikRahatsizlik: updated.kronikRahatsizlik ?? "",
+        kullanilanIlaclar: updated.kullanilanIlaclar ?? "",
+        ameliyatGecmisi: updated.ameliyatGecmisi ?? "",
+        sigaraAlkol: updated.sigaraAlkol ?? "",
+        saglikNotu: updated.saglikNotu ?? "",
+      },
+    });
+  } catch (e) {
+    console.error("[health-info-update]", e);
     return res.status(500).json({ error: "Sunucu hatası." });
   }
 });
