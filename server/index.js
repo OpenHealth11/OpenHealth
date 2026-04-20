@@ -1,10 +1,17 @@
+import crypto from "crypto";
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { validateEmail } from "../validation.js";
-import { createUser, findUserByEmail } from "./userStore.js";
+import {
+  createUser,
+  findUserByEmail,
+  setResetToken,
+  findUserByResetToken,
+  updateUserPassword,
+} from "./userStore.js";
 
 if (!process.env.JWT_SECRET) {
   throw new Error("JWT_SECRET missing");
@@ -152,6 +159,75 @@ app.post("/api/auth/login", async (req, res) => {
     return res.json({ token, user: publicUser(user) });
   } catch (e) {
     console.error("[login]", e);
+    return res.status(500).json({ error: "Sunucu hatası." });
+  }
+});
+
+
+app.post("/api/auth/forgot-password", (req, res) => {
+  try {
+    const { email } = req.body ?? {};
+
+    const emailCheck = validateEmail(email);
+    if (!emailCheck.ok) {
+      return res.status(400).json({ error: emailCheck.error });
+    }
+
+    const user = findUserByEmail(emailCheck.value);
+
+    if (user) {
+      const resetToken = crypto.randomBytes(24).toString("hex");
+      const resetTokenExpiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+
+      setResetToken(user.email, resetToken, resetTokenExpiresAt);
+
+      console.log("[forgot-password] reset token:", resetToken);
+    }
+
+    return res.json({
+      message: "Eğer bu e-posta kayıtlıysa sıfırlama bağlantısı gönderildi.",
+    });
+  } catch (e) {
+    console.error("[forgot-password]", e);
+    return res.status(500).json({ error: "Sunucu hatası." });
+  }
+});
+
+app.post("/api/auth/reset-password", async (req, res) => {
+  try {
+    const { token, newPassword, newPasswordConfirm } = req.body ?? {};
+
+    if (!token || typeof token !== "string") {
+      return res.status(400).json({ error: "Geçerli bir token gerekli." });
+    }
+
+    if (!newPassword || typeof newPassword !== "string") {
+      return res.status(400).json({ error: "Yeni şifre gerekli." });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({ error: "Şifre en az 8 karakter olmalı." });
+    }
+
+    if (newPassword !== newPasswordConfirm) {
+      return res.status(400).json({ error: "Şifreler eşleşmiyor." });
+    }
+
+    const user = findUserByResetToken(token);
+    if (!user) {
+      return res.status(400).json({ error: "Geçersiz veya kullanılmış token." });
+    }
+
+    if (!user.resetTokenExpiresAt || new Date(user.resetTokenExpiresAt).getTime() < Date.now()) {
+      return res.status(400).json({ error: "Token süresi dolmuş." });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+    updateUserPassword(user.id, passwordHash);
+
+    return res.json({ message: "Şifreniz başarıyla güncellendi." });
+  } catch (e) {
+    console.error("[reset-password]", e);
     return res.status(500).json({ error: "Sunucu hatası." });
   }
 });
