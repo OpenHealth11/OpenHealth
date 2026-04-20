@@ -48,3 +48,35 @@ export function createUser({ fullName, email, passwordHash, role }) {
   saveDb(db);
   return user;
 }
+
+export function setResetToken(email, resetToken, resetTokenExpiresAt) {
+  const db = loadDb();
+  const user = db.users.find(
+    (u) => u.email.toLowerCase() === email.toLowerCase()
+  );
+  if (!user) return null;
+
+  user.resetToken = resetToken;
+  user.resetTokenExpiresAt = resetTokenExpiresAt;
+  saveDb(db);
+  return user;
+}
+
+export function findUserByResetToken(token) {
+  const { users } = loadDb();
+  return users.find((u) => u.resetToken === token) ?? null;
+}
+
+export function updateUserPassword(userId, passwordHash) {
+  const db = loadDb();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+
+  user.passwordHash = passwordHash;
+  user.resetToken = null;
+  user.resetTokenExpiresAt = null;
+  user.updatedAt = new Date().toISOString();
+
+  saveDb(db);
+  return user;
+}

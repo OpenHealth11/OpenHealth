@@ -43,16 +43,55 @@ function AuthPage({
       : `İstek başarısız (${status}).`;
   }
 
-  function submitForgotPassword() {
-    setResetMsg("");
-    setAuthError("");
-    const check = validateEmail(resetEmail);
-    if (!check.ok) {
-      setAuthError(check.error);
+ async function submitForgotPassword() {
+  setResetMsg("");
+  setAuthError("");
+
+  const check = validateEmail(resetEmail);
+  if (!check.ok) {
+    setAuthError(check.error);
+    return;
+  }
+
+  setAuthLoading(true);
+  try {
+    const res = await fetch("/api/auth/forgot-password", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email: check.value,
+      }),
+    });
+
+    const raw = await res.text();
+    let data = {};
+    try {
+      data = raw ? JSON.parse(raw) : {};
+    } catch {
+      setAuthError(
+        raw.trim() ? `Sunucu (${res.status}): ${raw.slice(0, 200)}` : "İstek başarısız."
+      );
       return;
     }
-    setResetMsg("Eğer bu e-posta kayıtlıysa sıfırlama bağlantısı gönderildi.");
+
+    if (!res.ok) {
+      setAuthError(data.error || "Şifre sıfırlama isteği başarısız.");
+      return;
+    }
+
+    setResetMsg(
+      data.message || "Eğer bu e-posta kayıtlıysa sıfırlama bağlantısı gönderildi."
+    );
+  } catch {
+    setAuthError(
+      "Bağlantı kurulamadı. Node API açık mı? (`npm run server` → http://localhost:3001)"
+    );
+  } finally {
+    setAuthLoading(false);
   }
+}
 
   async function submitLogin() {
     if (role !== "danisan" && role !== "diyetisyen") return;
