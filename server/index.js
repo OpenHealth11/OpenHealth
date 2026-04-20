@@ -11,6 +11,7 @@ import {
   setResetToken,
   findUserByResetToken,
   updateUserPassword,
+  updateUserProfile,
 } from "./userStore.js";
 
 if (!process.env.JWT_SECRET) {
@@ -34,8 +35,36 @@ function publicUser(u) {
     fullName: u.fullName,
     role: u.role,
     status: u.status,
+    boy: u.boy ?? "",
+    kilo: u.kilo ?? "",
+    hedef: u.hedef ?? "",
+    alerji: u.alerji ?? "",
+    hastalik: u.hastalik ?? "",
   };
 }
+
+function getUserFromAuthHeader(req) {
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith("Bearer ")) {
+    return null;
+  }
+
+  const token = header.slice("Bearer ".length).trim();
+  if (!token) {
+    return null;
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const email = typeof decoded.email === "string" ? decoded.email : null;
+    if (!email) return null;
+
+    return findUserByEmail(email);
+  } catch {
+    return null;
+  }
+}
+
 
 app.post("/api/auth/register", async (req, res) => {
   try {
@@ -228,6 +257,59 @@ app.post("/api/auth/reset-password", async (req, res) => {
     return res.json({ message: "Şifreniz başarıyla güncellendi." });
   } catch (e) {
     console.error("[reset-password]", e);
+    return res.status(500).json({ error: "Sunucu hatası." });
+  }
+});
+
+app.get("/api/profile", (req, res) => {
+  const user = getUserFromAuthHeader(req);
+  if (!user) {
+    return res.status(401).json({ error: "Yetkisiz." });
+  }
+
+  return res.json(publicUser(user));
+});
+
+app.put("/api/profile", (req, res) => {
+  try {
+    const user = getUserFromAuthHeader(req);
+    if (!user) {
+      return res.status(401).json({ error: "Yetkisiz." });
+    }
+
+    const {
+      fullName,
+      boy,
+      kilo,
+      hedef,
+      alerji,
+      hastalik,
+    } = req.body ?? {};
+
+    const name = typeof fullName === "string" ? fullName.trim() : "";
+    if (!name) {
+      return res.status(400).json({ error: "Ad soyad gerekli." });
+    }
+
+    const updated = updateUserProfile(user.id, {
+      fullName: name,
+      boy,
+      kilo,
+      hedef,
+      alerji,
+      hastalik,
+    });
+
+    if (!updated) {
+      return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+    }
+
+    return res.json({
+      message: "Profil bilgileri güncellendi.",
+      user: publicUser(updated),
+    });
+  } catch (e) {
+    console.error("[profile-update]", e);
     return res.status(500).json({ error: "Sunucu hatası." });
   }
 });

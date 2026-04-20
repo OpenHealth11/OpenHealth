@@ -36,14 +36,19 @@ export function createUser({ fullName, email, passwordHash, role }) {
   const id = db.nextId++;
   const status = role === "diyetisyen" ? "pending" : "approved";
   const user = {
-    id,
-    fullName,
-    email: email.trim().toLowerCase(),
-    passwordHash,
-    role,
-    status,
-    createdAt: new Date().toISOString(),
-  };
+  id,
+  fullName,
+  email: email.trim().toLowerCase(),
+  passwordHash,
+  role,
+  status,
+  boy: "",
+  kilo: "",
+  hedef: "",
+  alerji: "",
+  hastalik: "",
+  createdAt: new Date().toISOString(),
+};
   db.users.push(user);
   saveDb(db);
   return user;
@@ -75,6 +80,30 @@ export function updateUserPassword(userId, passwordHash) {
   user.passwordHash = passwordHash;
   user.resetToken = null;
   user.resetTokenExpiresAt = null;
+  user.updatedAt = new Date().toISOString();
+
+  saveDb(db);
+  return user;
+}
+export function updateUserProfile(userId, profileData) {
+  const db = loadDb();
+  const user = db.users.find((u) => u.id === userId);
+  if (!user) return null;
+
+  user.fullName = typeof profileData.fullName === "string"
+    ? profileData.fullName.trim()
+    : user.fullName;
+
+  user.boy = profileData.boy ?? user.boy;
+  user.kilo = profileData.kilo ?? user.kilo;
+  user.hedef = profileData.hedef ?? user.hedef;
+  user.alerji = typeof profileData.alerji === "string"
+    ? profileData.alerji.trim()
+    : user.alerji;
+  user.hastalik = typeof profileData.hastalik === "string"
+    ? profileData.hastalik.trim()
+    : user.hastalik;
+
   user.updatedAt = new Date().toISOString();
 
   saveDb(db);

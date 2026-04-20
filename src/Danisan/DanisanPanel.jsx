@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { initialDanisanData } from "./DanisanMockData";
 import "./Danisan.css";
@@ -16,6 +16,54 @@ export default function DanisanPanel() {
   const navigate = useNavigate();
   const [activePage, setActivePage] = useState("dashboard");
   const [data, setData] = useState(initialDanisanData);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [profileError, setProfileError] = useState("");
+
+  useEffect(() => {
+    async function fetchProfile() {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setProfileLoading(false);
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/profile", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        const raw = await res.text();
+        let profileData = {};
+        try {
+          profileData = raw ? JSON.parse(raw) : {};
+        } catch {
+          setProfileError("Profil bilgileri okunamadı.");
+          return;
+        }
+
+        if (!res.ok) {
+          setProfileError(profileData.error || "Profil bilgileri alınamadı.");
+          return;
+        }
+
+        setData((prev) => ({
+          ...prev,
+          user: {
+            ...prev.user,
+            ...profileData,
+          },
+        }));
+      } catch {
+        setProfileError("Sunucuya bağlanılamadı.");
+      } finally {
+        setProfileLoading(false);
+      }
+    }
+
+    fetchProfile();
+  }, []);
 
   const addWater = () => {
     setData((prev) => ({
@@ -60,13 +108,66 @@ export default function DanisanPanel() {
     }));
   };
 
-  const updateProfile = (updatedUser) => {
-    setData((prev) => ({
-      ...prev,
-      user: updatedUser,
-    }));
-  };
+  const updateProfile = async (updatedUser) => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
 
+    try {
+      const res = await fetch("/api/profile", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(updatedUser),
+      });
+
+      const raw = await res.text();
+      let result = {};
+      try {
+        result = raw ? JSON.parse(raw) : {};
+      } catch {
+        alert("Sunucu cevabı okunamadı.");
+        return;
+      }
+
+      if (!res.ok) {
+        alert(result.error || "Profil güncellenemedi.");
+        return;
+      }
+
+      setData((prev) => ({
+        ...prev,
+        user: result.user,
+      }));
+
+      localStorage.setItem("user", JSON.stringify(result.user));
+      alert(result.message || "Profil bilgileri güncellendi.");
+    } catch {
+      alert("Sunucuya bağlanılamadı.");
+    }
+  };
+ 
+  if (profileLoading) {
+    return (
+      <div className="panel-layout">
+        <main className="main-content">
+          <p>Profil yükleniyor...</p>
+        </main>
+      </div>
+    );
+  }
+
+  if (profileError) {
+    return (
+      <div className="panel-layout">
+        <main className="main-content">
+          <p>{profileError}</p>
+        </main>
+      </div>
+    );
+  }
+  
   const renderPage = () => {
     switch (activePage) {
       case "dashboard":
