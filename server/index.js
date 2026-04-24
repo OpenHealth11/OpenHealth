@@ -8,6 +8,8 @@ import { validateEmail } from "../validation.js";
 import {
   createUser,
   findUserByEmail,
+  findUserById,
+  assignDietitianToClient,
   setResetToken,
   findUserByResetToken,
   updateUserPassword,
@@ -455,6 +457,49 @@ app.post("/api/measurements", (req, res) => {
     });
   } catch (e) {
     console.error("[measurements-create]", e);
+    return res.status(500).json({ error: "Sunucu hatası." });
+  }
+});
+
+app.put("/api/danisan/assign-dietitian", (req, res) => {
+  try {
+    const { danisanId, diyetisyenId } = req.body ?? {};
+
+    if (!danisanId || !diyetisyenId) {
+      return res.status(400).json({
+        error: "Danışan ID ve diyetisyen ID gerekli.",
+      });
+    }
+
+    const danisan = findUserById(danisanId);
+    const diyetisyen = findUserById(diyetisyenId);
+
+    if (!danisan || !diyetisyen) {
+      return res.status(404).json({
+        error: "Danışan veya diyetisyen bulunamadı.",
+      });
+    }
+
+    const result = assignDietitianToClient(danisanId, diyetisyenId);
+
+    if (!result) {
+      return res.status(404).json({
+        error: "Atama işlemi yapılamadı.",
+      });
+    }
+
+    if (result.error) {
+      return res.status(400).json({
+        error: result.error,
+      });
+    }
+
+    return res.json({
+      message: "Danışan diyetisyene atandı.",
+      assignment: result,
+    });
+  } catch (e) {
+    console.error("[assign-dietitian]", e);
     return res.status(500).json({ error: "Sunucu hatası." });
   }
 });

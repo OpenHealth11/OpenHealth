@@ -42,6 +42,7 @@ export function createUser({ fullName, email, passwordHash, role }) {
   passwordHash,
   role,
   status,
+  diyetisyenId: null,
   boy: "",
   kilo: "",
   hedef: "",
@@ -201,4 +202,36 @@ export function updateUserHealthInfo(userId, healthData) {
 
   saveDb(db);
   return user;
+}
+
+export function findUserById(userId) {
+  const { users } = loadDb();
+  return users.find((u) => u.id === Number(userId)) ?? null;
+}
+
+export function assignDietitianToClient(danisanId, diyetisyenId) {
+  const db = loadDb();
+
+  const danisan = db.users.find((u) => u.id === Number(danisanId));
+  const diyetisyen = db.users.find((u) => u.id === Number(diyetisyenId));
+
+  if (!danisan || !diyetisyen) return null;
+
+  if (danisan.role !== "danisan") {
+    return { error: "Seçilen kullanıcı danışan değil." };
+  }
+
+  if (diyetisyen.role !== "diyetisyen") {
+    return { error: "Seçilen kullanıcı diyetisyen değil." };
+  }
+
+  danisan.diyetisyenId = diyetisyen.id;
+  danisan.updatedAt = new Date().toISOString();
+
+  saveDb(db);
+
+  return {
+    danisanId: danisan.id,
+    diyetisyenId: diyetisyen.id,
+  };
 }
