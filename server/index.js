@@ -17,6 +17,11 @@ import {
   addUserMeasurement,
   getClientsByDietitianId,
 } from "./userStore.js";
+import {
+  getPlansByDietitianId,
+  createPlan,
+  deletePlan,
+} from "./planStore.js";
 
 if (!process.env.JWT_SECRET) {
   throw new Error("JWT_SECRET missing");
@@ -484,6 +489,100 @@ app.get("/api/diyetisyen/clients", (req, res) => {
     return res.status(500).json({ error: "Sunucu hatası." });
   }
 });
+
+app.get("/api/plans", (req, res) => {
+  try {
+    const user = getUserFromAuthHeader(req);
+
+    if (!user) {
+      return res.status(401).json({ error: "Yetkisiz." });
+    }
+
+    if (user.role !== "diyetisyen") {
+      return res.status(403).json({
+        error: "Bu işlem yalnızca diyetisyen kullanıcılar içindir.",
+      });
+    }
+
+    const plans = getPlansByDietitianId(user.id);
+
+    return res.json({ plans });
+  } catch (e) {
+    console.error("[plans-list]", e);
+    return res.status(500).json({ error: "Sunucu hatası." });
+  }
+});
+
+app.post("/api/plans", (req, res) => {
+  try {
+    const user = getUserFromAuthHeader(req);
+
+    if (!user) {
+      return res.status(401).json({ error: "Yetkisiz." });
+    }
+
+    if (user.role !== "diyetisyen") {
+      return res.status(403).json({
+        error: "Bu işlem yalnızca diyetisyen kullanıcılar içindir.",
+      });
+    }
+
+    const { danisanAdi, baslik } = req.body ?? {};
+
+    if (!danisanAdi || typeof danisanAdi !== "string" || !danisanAdi.trim()) {
+      return res.status(400).json({ error: "Danışan adı gerekli." });
+    }
+
+    if (!baslik || typeof baslik !== "string" || !baslik.trim()) {
+      return res.status(400).json({ error: "Plan başlığı gerekli." });
+    }
+
+    const plan = createPlan({
+      danisanAdi,
+      baslik,
+      createdBy: user.id,
+    });
+
+    return res.status(201).json({
+      message: "Plan oluşturuldu.",
+      plan,
+    });
+  } catch (e) {
+    console.error("[plans-create]", e);
+    return res.status(500).json({ error: "Sunucu hatası." });
+  }
+});
+
+app.delete("/api/plans/:id", (req, res) => {
+  try {
+    const user = getUserFromAuthHeader(req);
+
+    if (!user) {
+      return res.status(401).json({ error: "Yetkisiz." });
+    }
+
+    if (user.role !== "diyetisyen") {
+      return res.status(403).json({
+        error: "Bu işlem yalnızca diyetisyen kullanıcılar içindir.",
+      });
+    }
+
+    const deleted = deletePlan(req.params.id, user.id);
+
+    if (!deleted) {
+      return res.status(404).json({ error: "Plan bulunamadı." });
+    }
+
+    return res.json({
+      message: "Plan silindi.",
+      plan: deleted,
+    });
+  } catch (e) {
+    console.error("[plans-delete]", e);
+    return res.status(500).json({ error: "Sunucu hatası." });
+  }
+});
+
 
 app.get("/api/auth/me", (req, res) => {
   const header = req.headers.authorization;
