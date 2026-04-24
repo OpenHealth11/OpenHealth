@@ -15,6 +15,7 @@ import {
   updateUserHealthInfo,
   getUserMeasurements,
   addUserMeasurement,
+  getClientsByDietitianId,
 } from "./userStore.js";
 
 if (!process.env.JWT_SECRET) {
@@ -455,6 +456,31 @@ app.post("/api/measurements", (req, res) => {
     });
   } catch (e) {
     console.error("[measurements-create]", e);
+    return res.status(500).json({ error: "Sunucu hatası." });
+  }
+});
+
+app.get("/api/diyetisyen/clients", (req, res) => {
+  try {
+    const user = getUserFromAuthHeader(req);
+
+    if (!user) {
+      return res.status(401).json({ error: "Yetkisiz." });
+    }
+
+    if (user.role !== "diyetisyen") {
+      return res.status(403).json({
+        error: "Bu işlem yalnızca diyetisyen kullanıcılar içindir.",
+      });
+    }
+
+    const clients = getClientsByDietitianId(user.id);
+
+    return res.json({
+      clients: clients.map((client) => publicUser(client)),
+    });
+  } catch (e) {
+    console.error("[dietitian-clients]", e);
     return res.status(500).json({ error: "Sunucu hatası." });
   }
 });

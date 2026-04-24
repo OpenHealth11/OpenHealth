@@ -202,3 +202,11 @@ export function updateUserHealthInfo(userId, healthData) {
   saveDb(db);
   return user;
 }
+
+export function getClientsByDietitianId(diyetisyenId) {
+  const { users } = loadDb();
+
+  return users.filter(
+    (u) => u.role === "danisan" && u.diyetisyenId === Number(diyetisyenId)
+  );
+}
