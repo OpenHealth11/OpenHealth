@@ -63,3 +63,65 @@ export function deletePlan(planId, dietitianId) {
 
   return deletedPlan;
 }
+
+export function getMealsByPlanId(planId, dietitianId) {
+  const db = loadPlansDb();
+
+  const plan = db.plans.find(
+    (p) => p.id === Number(planId) && p.createdBy === Number(dietitianId)
+  );
+
+  if (!plan) return null;
+
+  return Array.isArray(plan.meals) ? plan.meals : [];
+}
+
+export function addMealToPlan(planId, dietitianId, mealData) {
+  const db = loadPlansDb();
+
+  const plan = db.plans.find(
+    (p) => p.id === Number(planId) && p.createdBy === Number(dietitianId)
+  );
+
+  if (!plan) return null;
+
+  if (!Array.isArray(plan.meals)) {
+    plan.meals = [];
+  }
+
+  const meal = {
+    id: Date.now(),
+    ogun: typeof mealData.ogun === "string" ? mealData.ogun.trim() : "",
+    detay: typeof mealData.detay === "string" ? mealData.detay.trim() : "",
+    kalori: Number(mealData.kalori),
+    createdAt: new Date().toISOString(),
+  };
+
+  plan.meals.push(meal);
+  plan.updatedAt = new Date().toISOString();
+
+  savePlansDb(db);
+
+  return meal;
+}
+
+export function deleteMealFromPlan(planId, mealId, dietitianId) {
+  const db = loadPlansDb();
+
+  const plan = db.plans.find(
+    (p) => p.id === Number(planId) && p.createdBy === Number(dietitianId)
+  );
+
+  if (!plan) return null;
+  if (!Array.isArray(plan.meals)) return null;
+
+  const index = plan.meals.findIndex((m) => m.id === Number(mealId));
+  if (index === -1) return null;
+
+  const [deletedMeal] = plan.meals.splice(index, 1);
+  plan.updatedAt = new Date().toISOString();
+
+  savePlansDb(db);
+
+  return deletedMeal;
+}

@@ -21,6 +21,9 @@ import {
   getPlansByDietitianId,
   createPlan,
   deletePlan,
+  getMealsByPlanId,
+  addMealToPlan,
+  deleteMealFromPlan,
 } from "./planStore.js";
 
 if (!process.env.JWT_SECRET) {
@@ -579,6 +582,115 @@ app.delete("/api/plans/:id", (req, res) => {
     });
   } catch (e) {
     console.error("[plans-delete]", e);
+    return res.status(500).json({ error: "Sunucu hatası." });
+  }
+});
+
+app.get("/api/plans/:id/meals", (req, res) => {
+  try {
+    const user = getUserFromAuthHeader(req);
+
+    if (!user) {
+      return res.status(401).json({ error: "Yetkisiz." });
+    }
+
+    if (user.role !== "diyetisyen") {
+      return res.status(403).json({
+        error: "Bu işlem yalnızca diyetisyen kullanıcılar içindir.",
+      });
+    }
+
+    const meals = getMealsByPlanId(req.params.id, user.id);
+
+    if (meals === null) {
+      return res.status(404).json({ error: "Plan bulunamadı." });
+    }
+
+    return res.json({ meals });
+  } catch (e) {
+    console.error("[plan-meals-list]", e);
+    return res.status(500).json({ error: "Sunucu hatası." });
+  }
+});
+
+app.post("/api/plans/:id/meals", (req, res) => {
+  try {
+    const user = getUserFromAuthHeader(req);
+
+    if (!user) {
+      return res.status(401).json({ error: "Yetkisiz." });
+    }
+
+    if (user.role !== "diyetisyen") {
+      return res.status(403).json({
+        error: "Bu işlem yalnızca diyetisyen kullanıcılar içindir.",
+      });
+    }
+
+    const { ogun, detay, kalori } = req.body ?? {};
+
+    if (!ogun || typeof ogun !== "string" || !ogun.trim()) {
+      return res.status(400).json({ error: "Öğün adı gerekli." });
+    }
+
+    if (!detay || typeof detay !== "string" || !detay.trim()) {
+      return res.status(400).json({ error: "Öğün detayı gerekli." });
+    }
+
+    if (kalori === undefined || Number.isNaN(Number(kalori))) {
+      return res.status(400).json({ error: "Geçerli bir kalori değeri gerekli." });
+    }
+
+    const meal = addMealToPlan(req.params.id, user.id, {
+      ogun,
+      detay,
+      kalori,
+    });
+
+    if (!meal) {
+      return res.status(404).json({ error: "Plan bulunamadı." });
+    }
+
+    return res.status(201).json({
+      message: "Plana öğün eklendi.",
+      meal,
+    });
+  } catch (e) {
+    console.error("[plan-meals-create]", e);
+    return res.status(500).json({ error: "Sunucu hatası." });
+  }
+});
+
+app.delete("/api/plans/:planId/meals/:mealId", (req, res) => {
+  try {
+    const user = getUserFromAuthHeader(req);
+
+    if (!user) {
+      return res.status(401).json({ error: "Yetkisiz." });
+    }
+
+    if (user.role !== "diyetisyen") {
+      return res.status(403).json({
+        error: "Bu işlem yalnızca diyetisyen kullanıcılar içindir.",
+      });
+    }
+
+    const deletedMeal = deleteMealFromPlan(
+      req.params.planId,
+      req.params.mealId,
+      user.id
+    );
+
+    if (!deletedMeal) {
+      return res.status(404).json({ error: "Plan veya öğün bulunamadı." });
+    }
+
+    return res.json({
+      message: "Öğün silindi.",
+      meal: deletedMeal,
+    });
+  } catch (e) {
+    console.error("[plan-meals-delete]", e);
     return res.status(500).json({ error: "Sunucu hatası." });
   }
 });
