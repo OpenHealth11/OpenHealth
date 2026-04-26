@@ -40,7 +40,6 @@ function LoginRoute() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [role, setRole] = useState("");
-  const [forgotPassword, setForgotPassword] = useState(false);
 
   const authMode =
     searchParams.get("mode") === "register" ? "register" : "login";
@@ -57,7 +56,6 @@ function LoginRoute() {
   }
 
   const switchMode = (mode) => {
-    setForgotPassword(false);
     setRole("");
 
     if (mode === "register") {
@@ -74,8 +72,6 @@ function LoginRoute() {
       switchMode={switchMode}
       role={role}
       setRole={setRole}
-      forgotPassword={forgotPassword}
-      setForgotPassword={setForgotPassword}
       onAuthSuccess={(data) => {
         const r = data?.user?.role;
 
@@ -97,20 +93,10 @@ function App() {
       <Route path="/" element={<HomePage />} />
       <Route path="/login" element={<LoginRoute />} />
       <Route
-        path="/danisan-panel"
-        element={
-          <ProtectedRoute allowedRole="danisan">
-            <DanisanPanel />
-          </ProtectedRoute>
-        }
+        path="/diyetisyen-panel" element={<DiyetisyenPanel />}
       />
       <Route
-        path="/diyetisyen-panel"
-        element={
-          <ProtectedRoute allowedRole="diyetisyen">
-            <DiyetisyenPanel />
-          </ProtectedRoute>
-        }
+         path="/danisan-panel" element={<DanisanPanel />} 
       />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
