@@ -8,9 +8,6 @@ function AuthPage({
   switchMode,
   role,
   setRole,
-  forgotPassword,
-  setForgotPassword,
-
   onAuthSuccess,
 }) {
   const [email, setEmail] = useState("");
@@ -19,8 +16,6 @@ function AuthPage({
   const [fullName, setFullName] = useState("");
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
-  const [resetEmail, setResetEmail] = useState("");
-  const [resetMsg, setResetMsg] = useState("");
   const [registerNotice, setRegisterNotice] = useState("");
 
   useEffect(() => {
@@ -32,80 +27,35 @@ function AuthPage({
     try {
       const j = JSON.parse(raw);
       if (j && typeof j.error === "string") return j.error;
-    } catch {
-      
-    }
+    } catch {}
+
     if (status === 404 || status === 502) {
       return "API yanıt vermiyor. Ayrı bir terminalde `npm run server` çalıştır (port 3001), ardından `npm run dev` ile sayfayı aç.";
     }
+
     return raw.trim()
       ? `Sunucu (${status}): ${raw.slice(0, 200)}`
       : `İstek başarısız (${status}).`;
   }
 
- async function submitForgotPassword() {
-  setResetMsg("");
-  setAuthError("");
-
-  const check = validateEmail(resetEmail);
-  if (!check.ok) {
-    setAuthError(check.error);
-    return;
-  }
-
-  setAuthLoading(true);
-  try {
-    const res = await fetch("/api/auth/forgot-password", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        email: check.value,
-      }),
-    });
-
-    const raw = await res.text();
-    let data = {};
-    try {
-      data = raw ? JSON.parse(raw) : {};
-    } catch {
-      setAuthError(
-        raw.trim() ? `Sunucu (${res.status}): ${raw.slice(0, 200)}` : "İstek başarısız."
-      );
-      return;
-    }
-
-    if (!res.ok) {
-      setAuthError(data.error || "Şifre sıfırlama isteği başarısız.");
-      return;
-    }
-
-    setResetMsg(
-      data.message || "Eğer bu e-posta kayıtlıysa sıfırlama bağlantısı gönderildi."
-    );
-  } catch {
-    setAuthError(
-      "Bağlantı kurulamadı. Node API açık mı? (`npm run server` → http://localhost:3001)"
-    );
-  } finally {
-    setAuthLoading(false);
-  }
-}
-
   async function submitLogin() {
     if (role !== "danisan" && role !== "diyetisyen") return;
+
     setAuthError("");
+
     if (!password) {
       setAuthError("E-posta ve şifre gerekli.");
       return;
     }
+
     const emailCheck = validateEmail(email);
     if (!emailCheck.ok) {
       setAuthError(emailCheck.error);
       return;
     }
+
     setAuthLoading(true);
+
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
@@ -116,8 +66,10 @@ function AuthPage({
           role,
         }),
       });
+
       const raw = await res.text();
       let data = {};
+
       try {
         data = raw ? JSON.parse(raw) : {};
       } catch {
@@ -128,6 +80,7 @@ function AuthPage({
         );
         return;
       }
+
       if (!res.ok) {
         setAuthError(
           data.error ||
@@ -135,6 +88,7 @@ function AuthPage({
         );
         return;
       }
+
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
       onAuthSuccess?.(data);
@@ -149,25 +103,32 @@ function AuthPage({
 
   async function submitRegister() {
     if (role !== "danisan" && role !== "diyetisyen") return;
+
     setAuthError("");
+
     if (password !== passwordConfirm) {
       setAuthError("Şifreler eşleşmiyor.");
       return;
     }
+
     if (password.length < 8) {
       setAuthError("Şifre en az 8 karakter olmalı.");
       return;
     }
+
     if (!fullName.trim()) {
       setAuthError("Ad soyad zorunlu.");
       return;
     }
+
     const emailCheck = validateEmail(email);
     if (!emailCheck.ok) {
       setAuthError(emailCheck.error);
       return;
     }
+
     setAuthLoading(true);
+
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
@@ -180,18 +141,22 @@ function AuthPage({
           role,
         }),
       });
+
       const raw = await res.text();
       let data = {};
+
       try {
         data = raw ? JSON.parse(raw) : {};
       } catch {
         setAuthError(messageFromBody(res.status, raw));
         return;
       }
+
       if (!res.ok) {
         setAuthError(data.error || messageFromBody(res.status, raw));
         return;
       }
+
       if (data.token) {
         localStorage.setItem("token", data.token);
         localStorage.setItem("user", JSON.stringify(data.user));
@@ -202,6 +167,7 @@ function AuthPage({
             ? data.message
             : "Kaydınız alındı. Hesabınız admin onayından sonra aktif olacak."
         );
+
         switchMode("login");
         setRole("");
         setPassword("");
@@ -216,8 +182,7 @@ function AuthPage({
     } finally {
       setAuthLoading(false);
     }
-  } 
-
+  }
 
   return (
     <div className="auth-page">
@@ -237,9 +202,12 @@ function AuthPage({
               >
                 Giriş Yap
               </button>
+
               <button
                 type="button"
-                className={authMode === "register" ? "mode-btn active" : "mode-btn"}
+                className={
+                  authMode === "register" ? "mode-btn active" : "mode-btn"
+                }
                 disabled={authLoading}
                 onClick={() => switchMode("register")}
               >
@@ -249,60 +217,11 @@ function AuthPage({
           </div>
 
           <div className="auth-panel">
-            {registerNotice && authMode === "login" && !forgotPassword ? (
+            {registerNotice && authMode === "login" ? (
               <p className="auth-success">{registerNotice}</p>
             ) : null}
 
-            {forgotPassword && (
-              <div className="form-wrap">
-                <button
-                  className="text-btn back-inline"
-                  onClick={() => {
-                    setForgotPassword(false);
-                    setResetEmail("");
-                    setResetMsg("");
-                    setAuthError("");
-                  }}
-                >
-                  ← Girişe Dön
-                </button>
-
-                <h2 className="form-title">Şifre Sıfırlama</h2>
-                <p className="form-subtitle">
-                  Kayıtlı e-posta adresinizi giriniz.
-                </p>
-
-                {authError && <p className="auth-error">{authError}</p>}
-                {resetMsg && <p className="auth-success">{resetMsg}</p>}
-
-                {!resetMsg && (
-                  <>
-                    <div className="form-group">
-                      <label>E-posta</label>
-                      <input
-                        className="form-control"
-                        type="email"
-                        placeholder="ornek@mail.com"
-                        value={resetEmail}
-                        onChange={(e) => setResetEmail(e.target.value)}
-                        autoComplete="email"
-                      />
-                    </div>
-
-                    <button
-                      type="button"
-                      className="submit-btn"
-                      disabled={authLoading}
-                      onClick={submitForgotPassword}
-                    >
-                      {authLoading ? "Gönderiliyor…" : "Sıfırlama Bağlantısı Gönder"}
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
-
-            {role === "" && !forgotPassword && (
+            {role === "" && (
               <>
                 <h1 className="auth-title">
                   {authMode === "login"
@@ -321,8 +240,10 @@ function AuthPage({
                     <div className="role-card-icon">🧍</div>
                     <h2>Danışan</h2>
                     <p>
-                      Günlük besin alımı, su takibi ve besin takası işlemleri için.
+                      Günlük besin alımı, su takibi ve besin takası işlemleri
+                      için.
                     </p>
+
                     <button
                       className="role-btn"
                       onClick={() => setRole("danisan")}
@@ -338,11 +259,12 @@ function AuthPage({
                     <h2>Diyetisyen</h2>
                     <p>
                       Danışan yönetimi, plan oluşturma ve takip süreçleri için.
-                    </p> 
+                    </p>
+
                     <button
                       className="role-btn"
-                        onClick={() => setRole("diyetisyen")}
-                    > 
+                      onClick={() => setRole("diyetisyen")}
+                    >
                       {authMode === "login"
                         ? "Diyetisyen Girişi"
                         : "Diyetisyen Kaydı"}
@@ -352,7 +274,7 @@ function AuthPage({
               </>
             )}
 
-            {role === "danisan" && !forgotPassword && (
+            {role === "danisan" && (
               <div className="form-wrap">
                 <button className="text-btn back-inline" onClick={() => setRole("")}>
                   ← Rol Seçimine Dön
@@ -372,7 +294,8 @@ function AuthPage({
 
                 {authMode === "register" && (
                   <p className="auth-hint">
-                    Kayıt: ad soyad ve e-posta zorunlu; şifre en az 8 karakterli olmalıdır.
+                    Kayıt: ad soyad ve e-posta zorunlu; şifre en az 8 karakterli
+                    olmalıdır.
                   </p>
                 )}
 
@@ -414,15 +337,6 @@ function AuthPage({
                       authMode === "login" ? "current-password" : "new-password"
                     }
                   />
-
-                  {authMode === "login" && (
-                    <p
-                      className="switch-link forgot-link"
-                      onClick={() => setForgotPassword(true)}
-                    >
-                      Şifremi Unuttum?
-                    </p>
-                  )}
                 </div>
 
                 {authMode === "register" && (
@@ -458,6 +372,7 @@ function AuthPage({
                   {authMode === "login"
                     ? "Hesabınız yok mu?"
                     : "Zaten hesabınız var mı?"}
+
                   <span
                     className="switch-link"
                     onClick={() =>
@@ -470,7 +385,7 @@ function AuthPage({
               </div>
             )}
 
-            {role === "diyetisyen" && !forgotPassword && (
+            {role === "diyetisyen" && (
               <div className="form-wrap">
                 <button className="text-btn back-inline" onClick={() => setRole("")}>
                   ← Rol Seçimine Dön
@@ -492,7 +407,8 @@ function AuthPage({
 
                 {authMode === "register" && (
                   <p className="auth-hint">
-                    Kayıt: ad soyad ve e-posta zorunlu; şifre en az 8 karakterli olmalıdır.
+                    Kayıt: ad soyad ve e-posta zorunlu; şifre en az 8 karakterli
+                    olmalıdır.
                   </p>
                 )}
 
@@ -534,15 +450,6 @@ function AuthPage({
                       authMode === "login" ? "current-password" : "new-password"
                     }
                   />
-
-                  {authMode === "login" && (
-                    <p
-                      className="switch-link forgot-link"
-                      onClick={() => setForgotPassword(true)}
-                    >
-                      Şifremi Unuttum?
-                    </p>
-                  )}
                 </div>
 
                 {authMode === "register" && (
@@ -578,6 +485,7 @@ function AuthPage({
                   {authMode === "login"
                     ? "Hesabınız yok mu?"
                     : "Zaten hesabınız var mı?"}
+
                   <span
                     className="switch-link"
                     onClick={() =>
