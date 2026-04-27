@@ -4,7 +4,6 @@ import { initialDiyetisyenData } from "./DiyetisyenMockData";
 import "./Diyetisyen.css";
 
 import DiyetisyenSidebar from "./DiyetisyenSidebar";
-import DiyetisyenTopbar from "./DiyetisyenTopbar";
 import DiyetisyenDashboard from "./DiyetisyenDashboard";
 import Danisanlar from "./Danisanlar";
 import PlanYonetimi from "./PlanYonetimi";
@@ -107,9 +106,7 @@ export default function DiyetisyenPanel() {
   const renderPage = () => {
     switch (activePage) {
       case "dashboard":
-        return (
-          <DiyetisyenDashboard/>
-        );
+        return <DiyetisyenDashboard />;
       case "danisanlar":
         return <Danisanlar />;
       case "plan":
@@ -128,33 +125,34 @@ export default function DiyetisyenPanel() {
         return <Bildirimler bildirimler={data.bildirimler || []} />;
       default:
         return (
-        <DiyetisyenDashboard 
+          <DiyetisyenDashboard 
             danisanlar={data.danisanlar}
             planlar={data.planlar}
             gunlukKayitlar={data.gunlukKayitlar}
           />
         );
-
     }
   };
 
   return (
-    <div className="dy-panel-layout">
+    <div className="dy-panel-layout" style={{ display: "flex", minHeight: "100vh", backgroundColor: "#f8fafc" }}>
       <DiyetisyenSidebar
         activePage={activePage}
         setActivePage={setActivePage}
       />
 
-      <main className="dy-main-content">
-        <DiyetisyenTopbar
-          fullName={data?.diyetisyen?.fullName || "Diyetisyen"}
-          onLogout={() => {
-            localStorage.removeItem("token");
-            localStorage.removeItem("user");
-            navigate("/login");
-          }}
-        />
-
+      {/* ÇİFT BOŞLUK HATASI BURADA ÇÖZÜLDÜ */}
+      <main 
+        className="dy-main-content" 
+        style={{ 
+          flex: 1, 
+          width: "100%", 
+          margin: 0, /* Buradaki ekstra 280px margin'i sildik, sayfalar kendi payını ayarlayacak */
+          padding: 0,
+          boxSizing: "border-box",
+          overflowX: "hidden"
+        }}
+      >
         {renderPage()}
       </main>
     </div>
