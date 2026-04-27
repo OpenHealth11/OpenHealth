@@ -28,6 +28,26 @@ export function findUserByEmail(email) {
   return users.find((u) => u.email.toLowerCase() === email.toLowerCase()) ?? null;
 }
 
+export function getUserById(id) {
+  const db = loadDb();
+  const target = Number(id);
+  return db.users.find((u) => u.id === target) ?? null;
+}
+
+export function listApprovedDanisanlar() {
+  const { users } = loadDb();
+  return users
+    .filter(
+      (u) =>
+        u.role === "danisan" && (u.status ?? "approved") === "approved"
+    )
+    .map((u) => ({
+      id: u.id,
+      fullName: u.fullName,
+      email: u.email,
+    }));
+}
+
 export function createUser({ fullName, email, passwordHash, role }) {
   const db = loadDb();
   if (db.users.some((u) => u.email.toLowerCase() === email.toLowerCase())) {
