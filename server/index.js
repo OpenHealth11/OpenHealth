@@ -5,14 +5,9 @@ import cors from "cors";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { validateEmail } from "../validation.js";
-import { getClientsByDiyetisyenId } from "./userStore.js";
-import { getRequestsByDiyetisyenId } from "./userStore.js";
-import { loadDb } from "./userStore.js";
 import {
   approveRequest,
-  rejectRequest
-} from "./userStore.js";
-import {
+  rejectRequest,
   createUser,
   findUserByEmail,
   setResetToken,
@@ -23,6 +18,8 @@ import {
   getUserMeasurements,
   addUserMeasurement,
   listApprovedDanisanlar,
+  getClientsByDiyetisyenId,
+  getRequestsByDiyetisyenId,
 } from "./userStore.js";
 import {
   listPlansByDietitian,
@@ -35,12 +32,14 @@ import {
   deletePlanByDietitian,
 } from "./planStore.js";
 
-
 if (!process.env.JWT_SECRET) {
   throw new Error("JWT_SECRET missing");
 }
-const JWT_SECRET = process.env.JWT_SECRET;
+if (!process.env.MSSQL_CONNECTION_STRING) {
+  throw new Error("MSSQL_CONNECTION_STRING missing");
+}
 
+const JWT_SECRET = process.env.JWT_SECRET;
 const PORT = Number(process.env.PORT) || 3001;
 const SALT_ROUNDS = 10;
 
@@ -74,7 +73,7 @@ function publicUser(u) {
   };
 }
 
-function getUserFromAuthHeader(req) {
+async function getUserFromAuthHeader(req) {
   const header = req.headers.authorization;
   if (!header || !header.startsWith("Bearer ")) {
     return null;
@@ -89,15 +88,14 @@ function getUserFromAuthHeader(req) {
     const decoded = jwt.verify(token, JWT_SECRET);
     const email = typeof decoded.email === "string" ? decoded.email : null;
     if (!email) return null;
-
-    return findUserByEmail(email);
+    return await findUserByEmail(email);
   } catch {
     return null;
   }
 }
 
-function requireDiyetisyen(req, res) {
-  const user = getUserFromAuthHeader(req);
+async function requireDiyetisyen(req, res) {
+  const user = await getUserFromAuthHeader(req);
   if (!user) {
     res.status(401).json({ error: "Yetkisiz." });
     return null;
@@ -130,7 +128,6 @@ function planErrorResponse(res, result) {
   return res.status(400).json({ error: "İşlem yapılamadı." });
 }
 
-
 app.post("/api/auth/register", async (req, res) => {
   try {
     const { email, password, passwordConfirm, fullName, role } = req.body ?? {};
@@ -157,12 +154,12 @@ app.post("/api/auth/register", async (req, res) => {
       return res.status(400).json({ error: "Ad soyad gerekli." });
     }
 
-    if (findUserByEmail(normalizedEmail)) {
+    if (await findUserByEmail(normalizedEmail)) {
       return res.status(409).json({ error: "Bu e-posta ile kayıt zaten var." });
     }
 
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-    const user = createUser({
+    const user = await createUser({
       fullName: name,
       email: normalizedEmail,
       passwordHash,
@@ -209,7 +206,7 @@ app.post("/api/auth/login", async (req, res) => {
       return res.status(400).json({ error: "Geçerli bir rol seçin." });
     }
 
-    const user = findUserByEmail(emailCheck.value);
+    const user = await findUserByEmail(emailCheck.value);
     if (!user) {
       return res.status(401).json({ error: "E-posta veya şifre hatalı." });
     }
@@ -257,8 +254,7 @@ app.post("/api/auth/login", async (req, res) => {
   }
 });
 
-
-app.post("/api/auth/forgot-password", (req, res) => {
+app.post("/api/auth/forgot-password", async (req, res) => {
   try {
     const { email } = req.body ?? {};
 
@@ -267,14 +263,13 @@ app.post("/api/auth/forgot-password", (req, res) => {
       return res.status(400).json({ error: emailCheck.error });
     }
 
-    const user = findUserByEmail(emailCheck.value);
+    const user = await findUserByEmail(emailCheck.value);
 
     if (user) {
       const resetToken = crypto.randomBytes(24).toString("hex");
       const resetTokenExpiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
 
-      setResetToken(user.email, resetToken, resetTokenExpiresAt);
-
+      await setResetToken(user.email, resetToken, resetTokenExpiresAt);
       console.log("[forgot-password] reset token:", resetToken);
     }
 
@@ -294,30 +289,26 @@ app.post("/api/auth/reset-password", async (req, res) => {
     if (!token || typeof token !== "string") {
       return res.status(400).json({ error: "Geçerli bir token gerekli." });
     }
-
     if (!newPassword || typeof newPassword !== "string") {
       return res.status(400).json({ error: "Yeni şifre gerekli." });
     }
-
     if (newPassword.length < 8) {
       return res.status(400).json({ error: "Şifre en az 8 karakter olmalı." });
     }
-
     if (newPassword !== newPasswordConfirm) {
       return res.status(400).json({ error: "Şifreler eşleşmiyor." });
     }
 
-    const user = findUserByResetToken(token);
+    const user = await findUserByResetToken(token);
     if (!user) {
       return res.status(400).json({ error: "Geçersiz veya kullanılmış token." });
     }
-
     if (!user.resetTokenExpiresAt || new Date(user.resetTokenExpiresAt).getTime() < Date.now()) {
       return res.status(400).json({ error: "Token süresi dolmuş." });
     }
 
     const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
-    updateUserPassword(user.id, passwordHash);
+    await updateUserPassword(user.id, passwordHash);
 
     return res.json({ message: "Şifreniz başarıyla güncellendi." });
   } catch (e) {
@@ -326,37 +317,28 @@ app.post("/api/auth/reset-password", async (req, res) => {
   }
 });
 
-app.get("/api/profile", (req, res) => {
-  const user = getUserFromAuthHeader(req);
+app.get("/api/profile", async (req, res) => {
+  const user = await getUserFromAuthHeader(req);
   if (!user) {
     return res.status(401).json({ error: "Yetkisiz." });
   }
-
   return res.json(publicUser(user));
 });
 
-app.put("/api/profile", (req, res) => {
+app.put("/api/profile", async (req, res) => {
   try {
-    const user = getUserFromAuthHeader(req);
+    const user = await getUserFromAuthHeader(req);
     if (!user) {
       return res.status(401).json({ error: "Yetkisiz." });
     }
 
-    const {
-      fullName,
-      boy,
-      kilo,
-      hedef,
-      alerji,
-      hastalik,
-    } = req.body ?? {};
-
+    const { fullName, boy, kilo, hedef, alerji, hastalik } = req.body ?? {};
     const name = typeof fullName === "string" ? fullName.trim() : "";
     if (!name) {
       return res.status(400).json({ error: "Ad soyad gerekli." });
     }
 
-    const updated = updateUserProfile(user.id, {
+    const updated = await updateUserProfile(user.id, {
       fullName: name,
       boy,
       kilo,
@@ -379,8 +361,8 @@ app.put("/api/profile", (req, res) => {
   }
 });
 
-app.get("/api/health-info", (req, res) => {
-  const user = getUserFromAuthHeader(req);
+app.get("/api/health-info", async (req, res) => {
+  const user = await getUserFromAuthHeader(req);
   if (!user) {
     return res.status(401).json({ error: "Yetkisiz." });
   }
@@ -398,9 +380,9 @@ app.get("/api/health-info", (req, res) => {
   });
 });
 
-app.put("/api/health-info", (req, res) => {
+app.put("/api/health-info", async (req, res) => {
   try {
-    const user = getUserFromAuthHeader(req);
+    const user = await getUserFromAuthHeader(req);
     if (!user) {
       return res.status(401).json({ error: "Yetkisiz." });
     }
@@ -417,7 +399,7 @@ app.put("/api/health-info", (req, res) => {
       saglikNotu,
     } = req.body ?? {};
 
-    const updated = updateUserHealthInfo(user.id, {
+    const updated = await updateUserHealthInfo(user.id, {
       kanGrubu,
       dogumTarihi,
       cinsiyet,
@@ -453,98 +435,79 @@ app.put("/api/health-info", (req, res) => {
   }
 });
 
-app.get("/api/diyetisyen/clients", (req, res) => {
-  const user = getUserFromAuthHeader(req);
-
+app.get("/api/diyetisyen/clients", async (req, res) => {
+  const user = await getUserFromAuthHeader(req);
   if (!user) {
     return res.status(401).json({ error: "Yetkisiz." });
   }
-
   if (user.role !== "diyetisyen") {
     return res.status(403).json({ error: "Bu işlem sadece diyetisyenler içindir." });
   }
 
-  const clients = getClientsByDiyetisyenId(user.id);
+  const clients = await getClientsByDiyetisyenId(user.id);
+  const safeClients = clients.map((u) => ({
+    id: u.id,
+    fullName: u.fullName,
+    yas: u.yas ?? "",
+    boy: u.boy ?? "",
+    kilo: u.kilo ?? "",
+    hedef: u.hedef ?? "",
+    sonGorusme: u.sonGorusme ?? "",
+    durum: u.durum ?? "Pasif",
+    alerji: u.alerji ?? "",
+    hastalik: u.hastalik ?? "",
+  }));
 
-const safeClients = clients.map((u) => ({
-  id: u.id,
-  fullName: u.fullName,
-  yas: u.yas ?? "",
-  boy: u.boy ?? "",
-  kilo: u.kilo ?? "",
-  hedef: u.hedef ?? "",
-  sonGorusme: u.sonGorusme ?? "",
-  durum: u.durum ?? "Pasif",
-  alerji: u.alerji ?? "",
-  hastalik: u.hastalik ?? "",
-}));
+  return res.json({ clients: safeClients });
+});
 
-return res.json({ clients: safeClients });
-}); 
-
-app.get("/api/diyetisyen/requests", (req, res) => {
-  const user = getUserFromAuthHeader(req);
-
+app.get("/api/diyetisyen/requests", async (req, res) => {
+  const user = await getUserFromAuthHeader(req);
   if (!user) {
     return res.status(401).json({ error: "Yetkisiz." });
   }
-
   if (user.role !== "diyetisyen") {
     return res.status(403).json({ error: "Bu işlem sadece diyetisyenler içindir." });
   }
 
-  const requests = getRequestsByDiyetisyenId(user.id);
-
-  const db = loadDb();
-
-const safeRequests = requests.map((r) => {
-  const user = db.users.find((u) => u.id === r.danisanId);
-
-  return {
+  const requests = await getRequestsByDiyetisyenId(user.id);
+  const safeRequests = requests.map((r) => ({
     id: r.id,
-    danisanAdi: user?.fullName || "",
+    danisanAdi: r.danisanAdi || "",
     talep: r.talep,
     tarih: r.tarih,
-  };
+  }));
+
+  return res.json({ requests: safeRequests });
 });
 
-return res.json({ requests: safeRequests });
-});
-
-
-app.post("/api/diyetisyen/requests/:id/approve", (req, res) => {
-  const user = getUserFromAuthHeader(req);
+app.post("/api/diyetisyen/requests/:id/approve", async (req, res) => {
+  const user = await getUserFromAuthHeader(req);
   if (!user) return res.status(401).json({ error: "Yetkisiz." });
 
-  const id = Number(req.params.id);
-
-  const result = approveRequest(id);
+  const result = await approveRequest(Number(req.params.id));
   if (!result) return res.status(404).json({ error: "Talep bulunamadı." });
 
-  res.json({ message: "Danışan atandı." });
+  return res.json({ message: "Danışan atandı." });
 });
 
-app.post("/api/diyetisyen/requests/:id/reject", (req, res) => {
-  const user = getUserFromAuthHeader(req);
+app.post("/api/diyetisyen/requests/:id/reject", async (req, res) => {
+  const user = await getUserFromAuthHeader(req);
   if (!user) return res.status(401).json({ error: "Yetkisiz." });
 
-  const id = Number(req.params.id);
-
-  const result = rejectRequest(id);
+  const result = await rejectRequest(Number(req.params.id));
   if (!result) return res.status(404).json({ error: "Talep bulunamadı." });
 
-  res.json({ message: "Talep reddedildi." });
+  return res.json({ message: "Talep reddedildi." });
 });
 
-
-
-app.get("/api/measurements", (req, res) => {
-  const user = getUserFromAuthHeader(req);
+app.get("/api/measurements", async (req, res) => {
+  const user = await getUserFromAuthHeader(req);
   if (!user) {
     return res.status(401).json({ error: "Yetkisiz." });
   }
 
-  const measurements = getUserMeasurements(user.id);
+  const measurements = await getUserMeasurements(user.id);
   if (measurements === null) {
     return res.status(404).json({ error: "Kullanıcı bulunamadı." });
   }
@@ -552,28 +515,19 @@ app.get("/api/measurements", (req, res) => {
   return res.json({ measurements });
 });
 
-app.post("/api/measurements", (req, res) => {
+app.post("/api/measurements", async (req, res) => {
   try {
-    const user = getUserFromAuthHeader(req);
+    const user = await getUserFromAuthHeader(req);
     if (!user) {
       return res.status(401).json({ error: "Yetkisiz." });
     }
 
-    const {
-      tarih,
-      kilo,
-      boy,
-      belCevresi,
-      kalcaCevresi,
-      yagOrani,
-      not,
-    } = req.body ?? {};
-
+    const { tarih, kilo, boy, belCevresi, kalcaCevresi, yagOrani, not } = req.body ?? {};
     if (!tarih || typeof tarih !== "string") {
       return res.status(400).json({ error: "Tarih gerekli." });
     }
 
-    const measurement = addUserMeasurement(user.id, {
+    const measurement = await addUserMeasurement(user.id, {
       tarih,
       kilo,
       boy,
@@ -597,42 +551,35 @@ app.post("/api/measurements", (req, res) => {
   }
 });
 
-/* --- PB-08 / PB-09 / PB-10: beslenme planı (şimdilik server/data/plans.json) --- */
-
-app.get("/api/diyetisyen/danisanlar", (req, res) => {
-  const u = requireDiyetisyen(req, res);
+app.get("/api/diyetisyen/danisanlar", async (req, res) => {
+  const u = await requireDiyetisyen(req, res);
   if (!u) return;
-  return res.json({ danisanlar: listApprovedDanisanlar() });
+  return res.json({ danisanlar: await listApprovedDanisanlar() });
 });
 
-app.get("/api/diyetisyen/plans", (req, res) => {
-  const u = requireDiyetisyen(req, res);
+app.get("/api/diyetisyen/plans", async (req, res) => {
+  const u = await requireDiyetisyen(req, res);
   if (!u) return;
-  return res.json({ plans: listPlansByDietitian(u.id) });
+  return res.json({ plans: await listPlansByDietitian(u.id) });
 });
 
-app.get("/api/diyetisyen/plans/:id", (req, res) => {
-  const u = requireDiyetisyen(req, res);
+app.get("/api/diyetisyen/plans/:id", async (req, res) => {
+  const u = await requireDiyetisyen(req, res);
   if (!u) return;
-  const plan = getPlanByDietitian(u.id, req.params.id);
+  const plan = await getPlanByDietitian(u.id, req.params.id);
   if (!plan) {
     return res.status(404).json({ error: "Plan bulunamadı." });
   }
   return res.json({ plan });
 });
 
-app.post("/api/diyetisyen/plans", (req, res) => {
+app.post("/api/diyetisyen/plans", async (req, res) => {
   try {
-    const u = requireDiyetisyen(req, res);
+    const u = await requireDiyetisyen(req, res);
     if (!u) return;
-    const {
-      clientUserId,
-      planAdi,
-      baslangicTarihi,
-      bitisTarihi,
-      ogunler,
-    } = req.body ?? {};
-    const result = createPlanForDietitian(u.id, {
+
+    const { clientUserId, planAdi, baslangicTarihi, bitisTarihi, ogunler } = req.body ?? {};
+    const result = await createPlanForDietitian(u.id, {
       clientUserId: Number(clientUserId),
       planAdi,
       baslangicTarihi,
@@ -649,12 +596,11 @@ app.post("/api/diyetisyen/plans", (req, res) => {
   }
 });
 
-/** PB-10: plan başlığı / tarihler / danışan / tüm öğün listesi (ogunler) kısmi veya tam güncelleme */
-app.patch("/api/diyetisyen/plans/:id", (req, res) => {
+app.patch("/api/diyetisyen/plans/:id", async (req, res) => {
   try {
-    const u = requireDiyetisyen(req, res);
+    const u = await requireDiyetisyen(req, res);
     if (!u) return;
-    const result = updatePlanForDietitian(u.id, req.params.id, req.body ?? {});
+    const result = await updatePlanForDietitian(u.id, req.params.id, req.body ?? {});
     if (!result.ok) {
       return planErrorResponse(res, result);
     }
@@ -665,11 +611,11 @@ app.patch("/api/diyetisyen/plans/:id", (req, res) => {
   }
 });
 
-app.delete("/api/diyetisyen/plans/:id", (req, res) => {
+app.delete("/api/diyetisyen/plans/:id", async (req, res) => {
   try {
-    const u = requireDiyetisyen(req, res);
+    const u = await requireDiyetisyen(req, res);
     if (!u) return;
-    const out = deletePlanByDietitian(u.id, req.params.id);
+    const out = await deletePlanByDietitian(u.id, req.params.id);
     if (!out.ok) {
       return res.status(404).json({ error: "Plan bulunamadı veya yetkiniz yok." });
     }
@@ -680,12 +626,11 @@ app.delete("/api/diyetisyen/plans/:id", (req, res) => {
   }
 });
 
-/** PB-09: tek PlanOgun satırı ekle */
-app.post("/api/diyetisyen/plans/:id/ogunler", (req, res) => {
+app.post("/api/diyetisyen/plans/:id/ogunler", async (req, res) => {
   try {
-    const u = requireDiyetisyen(req, res);
+    const u = await requireDiyetisyen(req, res);
     if (!u) return;
-    const result = addPlanOgun(u.id, req.params.id, req.body ?? {});
+    const result = await addPlanOgun(u.id, req.params.id, req.body ?? {});
     if (!result.ok) {
       return planErrorResponse(res, result);
     }
@@ -696,12 +641,11 @@ app.post("/api/diyetisyen/plans/:id/ogunler", (req, res) => {
   }
 });
 
-/** PB-09: tek satır güncelle */
-app.patch("/api/diyetisyen/plans/:id/ogunler/:planOgunId", (req, res) => {
+app.patch("/api/diyetisyen/plans/:id/ogunler/:planOgunId", async (req, res) => {
   try {
-    const u = requireDiyetisyen(req, res);
+    const u = await requireDiyetisyen(req, res);
     if (!u) return;
-    const result = updatePlanOgun(
+    const result = await updatePlanOgun(
       u.id,
       req.params.id,
       req.params.planOgunId,
@@ -717,16 +661,11 @@ app.patch("/api/diyetisyen/plans/:id/ogunler/:planOgunId", (req, res) => {
   }
 });
 
-/** PB-09: tek satır sil (en az bir öğün satırı kalmalı) */
-app.delete("/api/diyetisyen/plans/:id/ogunler/:planOgunId", (req, res) => {
+app.delete("/api/diyetisyen/plans/:id/ogunler/:planOgunId", async (req, res) => {
   try {
-    const u = requireDiyetisyen(req, res);
+    const u = await requireDiyetisyen(req, res);
     if (!u) return;
-    const result = deletePlanOgun(
-      u.id,
-      req.params.id,
-      req.params.planOgunId
-    );
+    const result = await deletePlanOgun(u.id, req.params.id, req.params.planOgunId);
     if (!result.ok) {
       return planErrorResponse(res, result);
     }
@@ -737,29 +676,12 @@ app.delete("/api/diyetisyen/plans/:id/ogunler/:planOgunId", (req, res) => {
   }
 });
 
-app.get("/api/auth/me", (req, res) => {
-  const header = req.headers.authorization;
-  if (!header || !header.startsWith("Bearer ")) {
+app.get("/api/auth/me", async (req, res) => {
+  const user = await getUserFromAuthHeader(req);
+  if (!user) {
     return res.status(401).json({ error: "Yetkisiz." });
   }
-  const token = header.slice("Bearer ".length).trim();
-  if (!token) {
-    return res.status(401).json({ error: "Yetkisiz." });
-  }
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    const email = typeof decoded.email === "string" ? decoded.email : null;
-    if (!email) {
-      return res.status(401).json({ error: "Yetkisiz." });
-    }
-    const user = findUserByEmail(email);
-    if (!user) {
-      return res.status(401).json({ error: "Yetkisiz." });
-    }
-    return res.json(publicUser(user));
-  } catch {
-    return res.status(401).json({ error: "Yetkisiz." });
-  }
+  return res.json(publicUser(user));
 });
 
 app.get("/api/health", (_req, res) => {
@@ -777,6 +699,6 @@ app.get("/", (_req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`OpenHealth API → http://localhost:${PORT}/`);
-  console.log(`Arayüz (Vite)  → http://localhost:5173  (ayrı: npm run dev)`);
+  console.log(`OpenHealth API -> http://localhost:${PORT}/`);
+  console.log(`Arayuz (Vite) -> http://localhost:5173  (ayri: npm run dev)`);
 });
