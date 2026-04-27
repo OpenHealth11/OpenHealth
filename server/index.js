@@ -6,6 +6,12 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { validateEmail } from "../validation.js";
 import { getClientsByDiyetisyenId } from "./userStore.js";
+import { getRequestsByDiyetisyenId } from "./userStore.js";
+import { loadDb } from "./userStore.js";
+import {
+  approveRequest,
+  rejectRequest
+} from "./userStore.js";
 import {
   createUser,
   findUserByEmail,
@@ -475,6 +481,61 @@ const safeClients = clients.map((u) => ({
 
 return res.json({ clients: safeClients });
 }); 
+
+app.get("/api/diyetisyen/requests", (req, res) => {
+  const user = getUserFromAuthHeader(req);
+
+  if (!user) {
+    return res.status(401).json({ error: "Yetkisiz." });
+  }
+
+  if (user.role !== "diyetisyen") {
+    return res.status(403).json({ error: "Bu işlem sadece diyetisyenler içindir." });
+  }
+
+  const requests = getRequestsByDiyetisyenId(user.id);
+
+  const db = loadDb();
+
+const safeRequests = requests.map((r) => {
+  const user = db.users.find((u) => u.id === r.danisanId);
+
+  return {
+    id: r.id,
+    danisanAdi: user?.fullName || "",
+    talep: r.talep,
+    tarih: r.tarih,
+  };
+});
+
+return res.json({ requests: safeRequests });
+});
+
+
+app.post("/api/diyetisyen/requests/:id/approve", (req, res) => {
+  const user = getUserFromAuthHeader(req);
+  if (!user) return res.status(401).json({ error: "Yetkisiz." });
+
+  const id = Number(req.params.id);
+
+  const result = approveRequest(id);
+  if (!result) return res.status(404).json({ error: "Talep bulunamadı." });
+
+  res.json({ message: "Danışan atandı." });
+});
+
+app.post("/api/diyetisyen/requests/:id/reject", (req, res) => {
+  const user = getUserFromAuthHeader(req);
+  if (!user) return res.status(401).json({ error: "Yetkisiz." });
+
+  const id = Number(req.params.id);
+
+  const result = rejectRequest(id);
+  if (!result) return res.status(404).json({ error: "Talep bulunamadı." });
+
+  res.json({ message: "Talep reddedildi." });
+});
+
 
 
 app.get("/api/measurements", (req, res) => {

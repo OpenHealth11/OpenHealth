@@ -237,3 +237,43 @@ export function getClientsByDiyetisyenId(diyetisyenId) {
     (u) => u.role === "danisan" && u.diyetisyenId === diyetisyenId
   );
 }
+
+export function getRequestsByDiyetisyenId(diyetisyenId) {
+  const db = loadDb();
+
+  return db.requests.filter(
+    (r) => r.diyetisyenId === diyetisyenId && r.durum === "pending"
+  );
+}
+
+export function approveRequest(requestId) {
+  const db = loadDb();
+
+  const request = db.requests.find((r) => r.id === requestId);
+  if (!request) return null;
+
+  const user = db.users.find((u) => u.id === request.danisanId);
+  if (!user) return null;
+
+  user.diyetisyenId = request.diyetisyenId;
+  user.durum = "Aktif";
+
+  request.durum = "approved";
+
+  saveDb(db);
+
+  return user;
+}
+
+export function rejectRequest(requestId) {
+  const db = loadDb();
+
+  const request = db.requests.find((r) => r.id === requestId);
+  if (!request) return null;
+
+  request.durum = "rejected";
+
+  saveDb(db);
+
+  return request;
+}
