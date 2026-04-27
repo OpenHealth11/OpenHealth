@@ -62,6 +62,12 @@ export function createUser({ fullName, email, passwordHash, role }) {
   passwordHash,
   role,
   status,
+  
+  yas: "",
+  sonGorusme: "",
+  durum: "Pasif",
+  diyetisyenId: null,
+
   boy: "",
   kilo: "",
   hedef: "",
@@ -221,4 +227,13 @@ export function updateUserHealthInfo(userId, healthData) {
 
   saveDb(db);
   return user;
+}
+
+
+export function getClientsByDiyetisyenId(diyetisyenId) {
+  const db = loadDb();
+
+  return db.users.filter(
+    (u) => u.role === "danisan" && u.diyetisyenId === diyetisyenId
+  );
 }

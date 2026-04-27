@@ -5,6 +5,7 @@ import cors from "cors";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { validateEmail } from "../validation.js";
+import { getClientsByDiyetisyenId } from "./userStore.js";
 import {
   createUser,
   findUserByEmail,
@@ -27,6 +28,7 @@ import {
   deletePlanOgun,
   deletePlanByDietitian,
 } from "./planStore.js";
+
 
 if (!process.env.JWT_SECRET) {
   throw new Error("JWT_SECRET missing");
@@ -444,6 +446,36 @@ app.put("/api/health-info", (req, res) => {
     return res.status(500).json({ error: "Sunucu hatası." });
   }
 });
+
+app.get("/api/diyetisyen/clients", (req, res) => {
+  const user = getUserFromAuthHeader(req);
+
+  if (!user) {
+    return res.status(401).json({ error: "Yetkisiz." });
+  }
+
+  if (user.role !== "diyetisyen") {
+    return res.status(403).json({ error: "Bu işlem sadece diyetisyenler içindir." });
+  }
+
+  const clients = getClientsByDiyetisyenId(user.id);
+
+const safeClients = clients.map((u) => ({
+  id: u.id,
+  fullName: u.fullName,
+  yas: u.yas ?? "",
+  boy: u.boy ?? "",
+  kilo: u.kilo ?? "",
+  hedef: u.hedef ?? "",
+  sonGorusme: u.sonGorusme ?? "",
+  durum: u.durum ?? "Pasif",
+  alerji: u.alerji ?? "",
+  hastalik: u.hastalik ?? "",
+}));
+
+return res.json({ clients: safeClients });
+}); 
+
 
 app.get("/api/measurements", (req, res) => {
   const user = getUserFromAuthHeader(req);
