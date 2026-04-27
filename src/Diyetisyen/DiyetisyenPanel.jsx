@@ -108,14 +108,10 @@ export default function DiyetisyenPanel() {
     switch (activePage) {
       case "dashboard":
         return (
-          <DiyetisyenDashboard
-            danisanlar={data.danisanlar || []}
-            planlar={data.planlar || []}
-            gunlukKayitlar={data.gunlukKayitlar || []}
-          />
+          <DiyetisyenDashboard/>
         );
       case "danisanlar":
-        return <Danisanlar danisanlar={data.danisanlar || []} />;
+        return <Danisanlar />;
       case "plan":
         return <PlanYonetimi onPlansChanged={handlePlansChanged} />;
       case "gunluk":

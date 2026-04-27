@@ -1,8 +1,65 @@
-function DiyetisyenTopbar({
-  talepler,
-  onaylaTalep,
-  reddetTalep,
-}) {
+import { useState, useEffect } from "react";
+function DiyetisyenTopbar() {
+  const [talepler, setTalepler] = useState([]);
+
+  useEffect(() => {
+  const fetchRequests = async () => {
+    try {
+      const token = localStorage.getItem("token");
+
+      const res = await fetch("http://localhost:3001/api/diyetisyen/requests", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await res.json();
+      setTalepler(data.requests);
+    } catch (err) {
+      console.error("Talepler alınamadı:", err);
+    }
+  };
+
+  fetchRequests();
+}, []);
+
+const onaylaTalep = async (id) => {
+  try {
+    const token = localStorage.getItem("token");
+
+    await fetch(`http://localhost:3001/api/diyetisyen/requests/${id}/approve`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    // ekrandan kaldır
+    setTalepler((prev) => prev.filter((t) => t.id !== id));
+  } catch (err) {
+    console.error("Onaylama hatası:", err);
+  }
+};
+
+const reddetTalep = async (id) => {
+  try {
+    const token = localStorage.getItem("token");
+
+    await fetch(`http://localhost:3001/api/diyetisyen/requests/${id}/reject`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    setTalepler((prev) => prev.filter((t) => t.id !== id));
+  } catch (err) {
+    console.error("Reddetme hatası:", err);
+  }
+};
+
+
+
   return (
     <div className="dy-page">
       <h2 className="dy-page-title">Onay Bekleyenler</h2>
