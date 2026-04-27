@@ -29,9 +29,7 @@ export default function DanisanPanel() {
 
       try {
         const res = await fetch("/api/profile", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
         });
 
         const raw = await res.text();
@@ -50,10 +48,7 @@ export default function DanisanPanel() {
 
         setData((prev) => ({
           ...prev,
-          user: {
-            ...prev.user,
-            ...profileData,
-          },
+          user: { ...prev.user, ...profileData },
         }));
       } catch {
         setProfileError("Sunucuya bağlanılamadı.");
@@ -68,35 +63,24 @@ export default function DanisanPanel() {
   const addWater = () => {
     setData((prev) => ({
       ...prev,
-      water: {
-        ...prev.water,
-        icilen: Math.min(prev.water.icilen + 1, prev.water.hedef),
-      },
+      water: { ...prev.water, icilen: Math.min(prev.water.icilen + 1, prev.water.hedef) },
     }));
   };
 
   const removeWater = () => {
     setData((prev) => ({
       ...prev,
-      water: {
-        ...prev.water,
-        icilen: Math.max(prev.water.icilen - 1, 0),
-      },
+      water: { ...prev.water, icilen: Math.max(prev.water.icilen - 1, 0) },
     }));
   };
 
   const addGunlukKayit = (newItem) => {
     if (!newItem.besin.trim() || !newItem.kalori) return;
-
     setData((prev) => ({
       ...prev,
       gunlukKayitlar: [
         ...prev.gunlukKayitlar,
-        {
-          id: Date.now(),
-          besin: newItem.besin,
-          kalori: Number(newItem.kalori),
-        },
+        { id: Date.now(), besin: newItem.besin, kalori: Number(newItem.kalori) },
       ],
     }));
   };
@@ -136,93 +120,43 @@ export default function DanisanPanel() {
         return;
       }
 
-      setData((prev) => ({
-        ...prev,
-        user: result.user,
-      }));
-
+      setData((prev) => ({ ...prev, user: result.user }));
       localStorage.setItem("user", JSON.stringify(result.user));
       alert(result.message || "Profil bilgileri güncellendi.");
     } catch {
       alert("Sunucuya bağlanılamadı.");
     }
   };
- 
-  if (profileLoading) {
-    return (
-      <div className="panel-layout">
-        <main className="main-content">
-          <p>Profil yükleniyor...</p>
-        </main>
-      </div>
-    );
-  }
 
-  if (profileError) {
-    return (
-      <div className="panel-layout">
-        <main className="main-content">
-          <p>{profileError}</p>
-        </main>
-      </div>
-    );
-  }
-  
   const renderPage = () => {
     switch (activePage) {
-      case "dashboard":
-        return <Dashboard data={data} />;
-      case "plan":
-        return <PlanPage meals={data.meals} />;
-      case "gunluk":
-        return (
-          <GunlukTakipPage
-            kayitlar={data.gunlukKayitlar}
-            addGunlukKayit={addGunlukKayit}
-            deleteGunlukKayit={deleteGunlukKayit}
-          />
-        );
-      case "su":
-        return (
-          <SuTakipPage
-            water={data.water}
-            addWater={addWater}
-            removeWater={removeWater}
-          />
-        );
-      case "takas":
-        return <BesinTakasiPage takasOnerileri={data.takasOnerileri} />;
-      case "rapor":
-        return <RaporPage rapor={data.haftalikRapor} />;
-      case "profil":
-        return <ProfilPage user={data.user} updateProfile={updateProfile} />;
-      default:
-        return <Dashboard data={data} />;
+      case "dashboard": return <Dashboard data={data} />;
+      case "plan": return <PlanPage meals={data.meals} />;
+      case "gunluk": return <GunlukTakipPage kayitlar={data.gunlukKayitlar} addGunlukKayit={addGunlukKayit} deleteGunlukKayit={deleteGunlukKayit} />;
+      case "su": return <SuTakipPage water={data.water} addWater={addWater} removeWater={removeWater} />;
+      case "takas": return <BesinTakasiPage takasOnerileri={data.takasOnerileri} />;
+      case "rapor": return <RaporPage rapor={data.haftalikRapor} />;
+      case "profil": return <ProfilPage user={data.user} updateProfile={updateProfile} />;
+      default: return <Dashboard data={data} />;
     }
   };
 
+  if (profileLoading) return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}>Profil yükleniyor...</div>;
+  if (profileError) return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}>{profileError}</div>;
+
   return (
-    <div className="panel-layout">
+    <div style={{ display: "flex", minHeight: "100vh", backgroundColor: "#f8fafc" }}>
       <DanisanSidebar activePage={activePage} setActivePage={setActivePage} />
 
-      <main className="main-content">
-        <header className="panel-header">
-          <div>
-            <h1>Danışan Paneli</h1>
-            <p>Sağlık takibini ve günlük planını buradan yönetebilirsin.</p>
-          </div>
-
-          <button className="logout-btn" 
-          onClick={() => {
-           localStorage.removeItem("token");
-           localStorage.removeItem("user");
-           navigate("/login");
-           }}>
-            Çıkış
-          </button>
+      <main style={{ flex: 1, marginLeft: "280px", padding: "40px", backgroundColor: "#f8fafc" }}>
+        <header className="panel-header" style={{ marginBottom: "30px", paddingBottom: "20px", borderBottom: "1px solid #e2e8f0" }}>
+          <h1 style={{ fontSize: "28px", fontWeight: "800", color: "#1e4d3b", margin: 0 }}>Danışan Paneli</h1>
+          <p style={{ color: "#64748b", margin: "5px 0 0 0" }}>Sağlık takibini ve günlük planını buradan yönetebilirsin.</p>
         </header>
 
-        {renderPage()}
+        <div className="content-container">
+          {renderPage()}
+        </div>
       </main>
     </div>
   );
