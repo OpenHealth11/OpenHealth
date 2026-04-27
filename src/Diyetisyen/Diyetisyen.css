@@ -391,3 +391,360 @@ body {
     flex-wrap: wrap;
   }
 }
+.dy-list-item input {
+  width: 100%;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 14px;
+}
+
+.dy-list-item input:focus {
+  outline: none;
+  border-color: #215f4e;
+  box-shadow: 0 0 0 3px rgba(33, 95, 78, 0.12);
+}
+.dy-search-input {
+  width: 100%;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 14px;
+}
+
+.dy-search-input:focus {
+  outline: none;
+  border-color: #215f4e;
+  box-shadow: 0 0 0 3px rgba(33, 95, 78, 0.12);
+}
+.dy-form-grid select {
+  width: 100%;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  padding: 12px 14px;
+  outline: none;
+  font-size: 14px;
+  background: white;
+}
+
+.dy-form-grid select:focus {
+  border-color: #215f4e;
+  box-shadow: 0 0 0 3px rgba(33, 95, 78, 0.12);
+}
+
+.dy-list-item input[type="time"],
+.dy-list-item input[type="number"] {
+  min-width: 120px;
+}
+
+.dy-list-item input[type="text"] {
+  min-width: 180px;
+}
+
+.dy-list-item {
+  flex-wrap: wrap;
+}
+
+.dy-list-item > input {
+  flex: 1;
+}
+
+.dy-action-group button {
+  white-space: nowrap;
+}
+
+.dy-card h3,
+.dy-card h4 {
+  margin-top: 0;
+  color: #111827;
+}
+
+.dy-card p {
+  line-height: 1.5;
+}
+.dy-section-title {
+  margin: 6px 0 14px;
+  font-size: 20px;
+  color: #111827;
+  font-weight: 800;
+}
+
+.dy-dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.dy-page section {
+  margin-bottom: 8px;
+}
+
+@media (max-width: 1100px) {
+  .dy-dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+/* ===== DANISAN YÖNETİMİ YENİ TASARIM ===== */
+
+.dy-big-card {
+  background: linear-gradient(135deg, #215f4e, #163f35);
+  color: white;
+  padding: 24px;
+  border-radius: 20px;
+  margin-bottom: 20px;
+}
+
+.dy-big-card h3 {
+  margin: 0 0 8px;
+  font-size: 20px;
+}
+
+.dy-big-card p {
+  margin: 0;
+  opacity: 0.9;
+}
+
+.dy-section {
+  margin-top: 20px;
+}
+
+.dy-section h3 {
+  margin-bottom: 12px;
+  font-size: 18px;
+  color: #111827;
+}
+
+/* Kart grid yapısı */
+.dy-card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+/* Küçük danışan kartı */
+.dy-card-mini {
+  background: white;
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.05);
+  transition: 0.2s ease;
+}
+
+.dy-card-mini:hover {
+  transform: translateY(-3px);
+}
+
+.dy-card-mini h4 {
+  margin: 0 0 6px;
+  font-size: 16px;
+  color: #111827;
+}
+
+.dy-card-mini p {
+  margin: 4px 0;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+/* mobil uyum */
+@media (max-width: 1000px) {
+  .dy-card-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.dy-hero-dashboard {
+  background: linear-gradient(135deg, #215f4e, #163f35);
+  color: white;
+  border-radius: 26px;
+  padding: 30px;
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: center;
+}
+
+.dy-hero-label {
+  margin: 0 0 8px;
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+.dy-hero-dashboard h2 {
+  margin: 0 0 10px;
+  font-size: 30px;
+}
+
+.dy-hero-dashboard p {
+  margin: 0;
+  max-width: 620px;
+  line-height: 1.6;
+  opacity: 0.9;
+}
+
+.dy-hero-number {
+  min-width: 150px;
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 22px;
+  padding: 20px;
+  text-align: center;
+}
+
+.dy-hero-number span {
+  display: block;
+  font-size: 42px;
+  font-weight: 800;
+}
+
+.dy-hero-number p {
+  font-size: 14px;
+}
+
+.dy-modern-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+}
+
+.dy-modern-stat-card {
+  background: white;
+  border-radius: 22px;
+  padding: 20px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+}
+
+.dy-modern-stat-card span {
+  display: block;
+  color: #6b7280;
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.dy-modern-stat-card strong {
+  font-size: 30px;
+  color: #215f4e;
+}
+
+.dy-dashboard-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.dy-priority-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dy-priority-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f8fafc;
+  border-radius: 16px;
+  padding: 14px;
+}
+
+.dy-priority-item strong {
+  color: #111827;
+}
+
+.dy-priority-item p {
+  margin: 5px 0 0;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.dy-client-card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+
+.dy-client-card {
+  background: #f8fafc;
+  border-radius: 22px;
+  padding: 18px;
+  border: 1px solid #e5e7eb;
+}
+
+.dy-client-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.dy-client-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  background: #215f4e;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+}
+
+.dy-client-top h4 {
+  margin: 0;
+  color: #111827;
+}
+
+.dy-client-top p {
+  margin: 4px 0 0;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.dy-client-info {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.dy-client-info p {
+  background: white;
+  border-radius: 14px;
+  padding: 10px;
+  margin: 0;
+}
+
+.dy-client-info span {
+  display: block;
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+
+.dy-client-info strong {
+  color: #111827;
+  font-size: 14px;
+}
+
+.dy-client-bottom {
+  margin-top: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dy-client-bottom small {
+  color: #6b7280;
+}
+
+@media (max-width: 1100px) {
+  .dy-modern-stats,
+  .dy-client-card-grid,
+  .dy-dashboard-split {
+    grid-template-columns: 1fr;
+  }
+
+  .dy-hero-dashboard {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+} 

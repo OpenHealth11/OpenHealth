@@ -110,7 +110,14 @@ export default function DiyetisyenPanel() {
       case "bildirim":
         return <Bildirimler bildirimler={data.bildirimler || []} />;
       default:
-        return <DiyetisyenDashboard data={data} />;
+        return (
+        <DiyetisyenDashboard 
+            danisanlar={data.danisanlar}
+            planlar={data.planlar}
+            gunlukKayitlar={data.gunlukKayitlar}
+          />
+        );
+
     }
   };
 
