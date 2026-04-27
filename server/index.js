@@ -15,7 +15,18 @@ import {
   updateUserHealthInfo,
   getUserMeasurements,
   addUserMeasurement,
+  listApprovedDanisanlar,
 } from "./userStore.js";
+import {
+  listPlansByDietitian,
+  getPlanByDietitian,
+  createPlanForDietitian,
+  updatePlanForDietitian,
+  addPlanOgun,
+  updatePlanOgun,
+  deletePlanOgun,
+  deletePlanByDietitian,
+} from "./planStore.js";
 
 if (!process.env.JWT_SECRET) {
   throw new Error("JWT_SECRET missing");
@@ -75,6 +86,40 @@ function getUserFromAuthHeader(req) {
   } catch {
     return null;
   }
+}
+
+function requireDiyetisyen(req, res) {
+  const user = getUserFromAuthHeader(req);
+  if (!user) {
+    res.status(401).json({ error: "Yetkisiz." });
+    return null;
+  }
+  if (user.role !== "diyetisyen") {
+    res.status(403).json({ error: "Bu işlem için diyetisyen hesabı gerekli." });
+    return null;
+  }
+  return user;
+}
+
+function planErrorResponse(res, result) {
+  if (result.code === "VALIDATION") {
+    return res.status(400).json({ error: "Geçersiz veya eksik alanlar." });
+  }
+  if (result.code === "NO_MEAL_CONTENT") {
+    return res.status(400).json({
+      error: "En az bir günlük öğün kaydı (gun + ogunler) gerekli.",
+    });
+  }
+  if (result.code === "CLIENT_INACTIVE") {
+    return res.status(403).json({ error: "Danışan hesabı uygun değil." });
+  }
+  if (result.code === "CLIENT_INVALID") {
+    return res.status(400).json({ error: "Geçerli bir danışan seçin." });
+  }
+  if (result.code === "NOT_FOUND") {
+    return res.status(404).json({ error: "Plan veya öğün satırı bulunamadı." });
+  }
+  return res.status(400).json({ error: "İşlem yapılamadı." });
 }
 
 
@@ -455,6 +500,146 @@ app.post("/api/measurements", (req, res) => {
     });
   } catch (e) {
     console.error("[measurements-create]", e);
+    return res.status(500).json({ error: "Sunucu hatası." });
+  }
+});
+
+/* --- PB-08 / PB-09 / PB-10: beslenme planı (şimdilik server/data/plans.json) --- */
+
+app.get("/api/diyetisyen/danisanlar", (req, res) => {
+  const u = requireDiyetisyen(req, res);
+  if (!u) return;
+  return res.json({ danisanlar: listApprovedDanisanlar() });
+});
+
+app.get("/api/diyetisyen/plans", (req, res) => {
+  const u = requireDiyetisyen(req, res);
+  if (!u) return;
+  return res.json({ plans: listPlansByDietitian(u.id) });
+});
+
+app.get("/api/diyetisyen/plans/:id", (req, res) => {
+  const u = requireDiyetisyen(req, res);
+  if (!u) return;
+  const plan = getPlanByDietitian(u.id, req.params.id);
+  if (!plan) {
+    return res.status(404).json({ error: "Plan bulunamadı." });
+  }
+  return res.json({ plan });
+});
+
+app.post("/api/diyetisyen/plans", (req, res) => {
+  try {
+    const u = requireDiyetisyen(req, res);
+    if (!u) return;
+    const {
+      clientUserId,
+      planAdi,
+      baslangicTarihi,
+      bitisTarihi,
+      ogunler,
+    } = req.body ?? {};
+    const result = createPlanForDietitian(u.id, {
+      clientUserId: Number(clientUserId),
+      planAdi,
+      baslangicTarihi,
+      bitisTarihi,
+      ogunler,
+    });
+    if (!result.ok) {
+      return planErrorResponse(res, result);
+    }
+    return res.status(201).json({ plan: result.plan });
+  } catch (e) {
+    console.error("[diyetisyen-plans-create]", e);
+    return res.status(500).json({ error: "Sunucu hatası." });
+  }
+});
+
+/** PB-10: plan başlığı / tarihler / danışan / tüm öğün listesi (ogunler) kısmi veya tam güncelleme */
+app.patch("/api/diyetisyen/plans/:id", (req, res) => {
+  try {
+    const u = requireDiyetisyen(req, res);
+    if (!u) return;
+    const result = updatePlanForDietitian(u.id, req.params.id, req.body ?? {});
+    if (!result.ok) {
+      return planErrorResponse(res, result);
+    }
+    return res.json({ plan: result.plan });
+  } catch (e) {
+    console.error("[diyetisyen-plans-patch]", e);
+    return res.status(500).json({ error: "Sunucu hatası." });
+  }
+});
+
+app.delete("/api/diyetisyen/plans/:id", (req, res) => {
+  try {
+    const u = requireDiyetisyen(req, res);
+    if (!u) return;
+    const out = deletePlanByDietitian(u.id, req.params.id);
+    if (!out.ok) {
+      return res.status(404).json({ error: "Plan bulunamadı veya yetkiniz yok." });
+    }
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error("[diyetisyen-plans-delete]", e);
+    return res.status(500).json({ error: "Sunucu hatası." });
+  }
+});
+
+/** PB-09: tek PlanOgun satırı ekle */
+app.post("/api/diyetisyen/plans/:id/ogunler", (req, res) => {
+  try {
+    const u = requireDiyetisyen(req, res);
+    if (!u) return;
+    const result = addPlanOgun(u.id, req.params.id, req.body ?? {});
+    if (!result.ok) {
+      return planErrorResponse(res, result);
+    }
+    return res.status(201).json({ plan: result.plan, planOgun: result.planOgun });
+  } catch (e) {
+    console.error("[plan-ogun-add]", e);
+    return res.status(500).json({ error: "Sunucu hatası." });
+  }
+});
+
+/** PB-09: tek satır güncelle */
+app.patch("/api/diyetisyen/plans/:id/ogunler/:planOgunId", (req, res) => {
+  try {
+    const u = requireDiyetisyen(req, res);
+    if (!u) return;
+    const result = updatePlanOgun(
+      u.id,
+      req.params.id,
+      req.params.planOgunId,
+      req.body ?? {}
+    );
+    if (!result.ok) {
+      return planErrorResponse(res, result);
+    }
+    return res.json({ plan: result.plan, planOgun: result.planOgun });
+  } catch (e) {
+    console.error("[plan-ogun-patch]", e);
+    return res.status(500).json({ error: "Sunucu hatası." });
+  }
+});
+
+/** PB-09: tek satır sil (en az bir öğün satırı kalmalı) */
+app.delete("/api/diyetisyen/plans/:id/ogunler/:planOgunId", (req, res) => {
+  try {
+    const u = requireDiyetisyen(req, res);
+    if (!u) return;
+    const result = deletePlanOgun(
+      u.id,
+      req.params.id,
+      req.params.planOgunId
+    );
+    if (!result.ok) {
+      return planErrorResponse(res, result);
+    }
+    return res.json({ plan: result.plan });
+  } catch (e) {
+    console.error("[plan-ogun-delete]", e);
     return res.status(500).json({ error: "Sunucu hatası." });
   }
 });

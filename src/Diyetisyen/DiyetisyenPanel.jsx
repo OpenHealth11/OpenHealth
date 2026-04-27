@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { initialDiyetisyenData } from "./DiyetisyenMockData";
 import "./Diyetisyen.css";
@@ -12,34 +12,55 @@ import GunlukTakip from "./GunlukTakip";
 import OnayBekleyenler from "./OnayBekleyenler";
 import Bildirimler from "./Bildirimler";
 
+function plansToDashboardRows(apiPlans) {
+  if (!Array.isArray(apiPlans)) return [];
+  return apiPlans.map((p) => {
+    let durum = "Aktif";
+    try {
+      const raw = p.ogunler?.[0]?.ogunler;
+      if (typeof raw === "string" && raw.trim().startsWith("{")) {
+        const meta = JSON.parse(raw);
+        if (meta.durum) durum = meta.durum;
+      }
+    } catch {
+      /* ignore */
+    }
+    return {
+      id: p.id,
+      durum,
+      baslik: p.planAdi,
+      danisanAdi: p.clientFullName ?? "",
+    };
+  });
+}
+
 export default function DiyetisyenPanel() {
   const navigate = useNavigate();
   const [activePage, setActivePage] = useState("dashboard");
   const [data, setData] = useState(initialDiyetisyenData || {});
 
-  const addPlan = (newPlan) => {
-    if (!newPlan.danisanAdi.trim() || !newPlan.baslik.trim()) return;
-
+  const handlePlansChanged = useCallback((apiPlans) => {
     setData((prev) => ({
       ...prev,
-      planlar: [
-        ...(prev.planlar || []),
-        {
-          id: Date.now(),
-          danisanAdi: newPlan.danisanAdi,
-          baslik: newPlan.baslik,
-          durum: "Aktif",
-        },
-      ],
+      planlar: plansToDashboardRows(apiPlans),
     }));
-  };
+  }, []);
 
-  const deletePlan = (id) => {
-    setData((prev) => ({
-      ...prev,
-      planlar: (prev.planlar || []).filter((plan) => plan.id !== id),
-    }));
-  };
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    fetch("/api/diyetisyen/plans", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((body) => {
+        setData((prev) => ({
+          ...prev,
+          planlar: plansToDashboardRows(body.plans || []),
+        }));
+      })
+      .catch(() => {});
+  }, []);
 
   const onaylaTalep = (id) => {
     const secilen = (data.onayBekleyenler || []).find((item) => item.id === id);
@@ -86,17 +107,17 @@ export default function DiyetisyenPanel() {
   const renderPage = () => {
     switch (activePage) {
       case "dashboard":
-        return <DiyetisyenDashboard data={data} />;
+        return (
+          <DiyetisyenDashboard
+            danisanlar={data.danisanlar || []}
+            planlar={data.planlar || []}
+            gunlukKayitlar={data.gunlukKayitlar || []}
+          />
+        );
       case "danisanlar":
         return <Danisanlar danisanlar={data.danisanlar || []} />;
       case "plan":
-        return (
-          <PlanYonetimi
-            planlar={data.planlar || []}
-            addPlan={addPlan}
-            deletePlan={deletePlan}
-          />
-        );
+        return <PlanYonetimi onPlansChanged={handlePlansChanged} />;
       case "gunluk":
         return <GunlukTakip gunlukKayitlar={data.gunlukKayitlar || []} />;
       case "onay":
