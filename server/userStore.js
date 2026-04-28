@@ -1,204 +1,638 @@
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+import sql from "mssql";
+import { getPool } from "./db.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dataDir = path.join(__dirname, "data");
-const dataFile = path.join(dataDir, "users.json");
-
-function ensureFile() {
-  if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-  if (!fs.existsSync(dataFile)) {
-    fs.writeFileSync(dataFile, JSON.stringify({ users: [], nextId: 1 }, null, 2));
-  }
-}
-
-export function loadDb() {
-  ensureFile();
-  return JSON.parse(fs.readFileSync(dataFile, "utf8"));
-}
-
-export function saveDb(db) {
-  ensureFile();
-  fs.writeFileSync(dataFile, JSON.stringify(db, null, 2));
-}
-
-export function findUserByEmail(email) {
-  const { users } = loadDb();
-  return users.find((u) => u.email.toLowerCase() === email.toLowerCase()) ?? null;
-}
-
-export function createUser({ fullName, email, passwordHash, role }) {
-  const db = loadDb();
-  if (db.users.some((u) => u.email.toLowerCase() === email.toLowerCase())) {
-    return null;
-  }
-  const id = db.nextId++;
-  const status = role === "diyetisyen" ? "pending" : "approved";
- const user = {
-  id,
-  fullName,
-  email: email.trim().toLowerCase(),
-  passwordHash,
-  role,
-  status,
-  boy: "",
-  kilo: "",
-  hedef: "",
-  alerji: "",
-  hastalik: "",
-  kanGrubu: "",
-  dogumTarihi: "",
-  cinsiyet: "",
-  aktiviteSeviyesi: "",
-  kronikRahatsizlik: "",
-  kullanilanIlaclar: "",
-  ameliyatGecmisi: "",
-  sigaraAlkol: "",
-  saglikNotu: "",
-  measurements: [],
-  createdAt: new Date().toISOString(),
+const ROLE_API_TO_DB = {
+  danisan: "Danisan",
+  diyetisyen: "Diyetisyen",
 };
-  db.users.push(user);
-  saveDb(db);
-  return user;
+
+const ROLE_DB_TO_API = {
+  Danisan: "danisan",
+  "Danışan": "danisan",
+  Diyetisyen: "diyetisyen",
+};
+
+function normalizeText(value) {
+  return typeof value === "string" ? value.trim() : "";
 }
 
-export function getUserMeasurements(userId) {
-  const db = loadDb();
-  const user = db.users.find((u) => u.id === userId);
-  if (!user) return null;
-
-  return Array.isArray(user.measurements) ? user.measurements : [];
+function nullableText(value) {
+  const text = normalizeText(value);
+  return text || null;
 }
 
-export function addUserMeasurement(userId, measurementData) {
-  const db = loadDb();
-  const user = db.users.find((u) => u.id === userId);
-  if (!user) return null;
+function nullableDate(value) {
+  const text = normalizeText(value);
+  return text || null;
+}
 
-  if (!Array.isArray(user.measurements)) {
-    user.measurements = [];
-  }
+function nullableNumber(value) {
+  if (value === "" || value == null) return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
 
-  const measurement = {
-    id: Date.now(),
-    tarih: measurementData.tarih,
-    kilo: measurementData.kilo ?? "",
-    boy: measurementData.boy ?? "",
-    belCevresi: measurementData.belCevresi ?? "",
-    kalcaCevresi: measurementData.kalcaCevresi ?? "",
-    yagOrani: measurementData.yagOrani ?? "",
-    not: typeof measurementData.not === "string" ? measurementData.not.trim() : "",
-    createdAt: new Date().toISOString(),
+function iso(value) {
+  return value instanceof Date ? value.toISOString() : value ?? null;
+}
+
+function mapRowToUser(row) {
+  if (!row) return null;
+  return {
+    id: row.UserID,
+    fullName: row.FullName,
+    email: row.Email?.trim().toLowerCase() ?? "",
+    passwordHash: row.PasswordHash,
+    role: ROLE_DB_TO_API[row.Role] ?? row.Role,
+    status: row.StatusCode ?? "approved",
+    yas: row.Yas ?? "",
+    sonGorusme: row.SonGorusme ? String(row.SonGorusme).slice(0, 10) : "",
+    durum: row.Durum ?? "Pasif",
+    diyetisyenId: row.DietitianID ?? null,
+    boy: row.Boy ?? "",
+    kilo: row.Kilo ?? "",
+    hedef: row.Hedef ?? "",
+    alerji: row.Alerji ?? "",
+    hastalik: row.Hastalik ?? "",
+    kanGrubu: row.KanGrubu ?? "",
+    dogumTarihi: row.DogumTarihi ? String(row.DogumTarihi).slice(0, 10) : "",
+    cinsiyet: row.Cinsiyet ?? "",
+    aktiviteSeviyesi: row.AktiviteSeviyesi ?? "",
+    kronikRahatsizlik: row.KronikRahatsizlik ?? "",
+    kullanilanIlaclar: row.KullanilanIlaclar ?? "",
+    ameliyatGecmisi: row.AmeliyatGecmisi ?? "",
+    sigaraAlkol: row.SigaraAlkol ?? "",
+    saglikNotu: row.SaglikNotu ?? "",
+    resetToken: row.ResetToken ?? null,
+    resetTokenExpiresAt: iso(row.ResetTokenExpiresAt),
+    createdAt: iso(row.CreatedAt),
+    updatedAt: iso(row.UpdatedAt),
   };
-
-  user.measurements.push(measurement);
-  user.updatedAt = new Date().toISOString();
-
-  saveDb(db);
-  return measurement;
 }
 
-export function setResetToken(email, resetToken, resetTokenExpiresAt) {
-  const db = loadDb();
-  const user = db.users.find(
-    (u) => u.email.toLowerCase() === email.toLowerCase()
-  );
-  if (!user) return null;
-
-  user.resetToken = resetToken;
-  user.resetTokenExpiresAt = resetTokenExpiresAt;
-  saveDb(db);
-  return user;
+async function fetchUserByClause(whereSql, bind) {
+  const pool = await getPool();
+  const request = pool.request();
+  bind(request);
+  const result = await request.query(`
+    SELECT
+      u.UserID,
+      u.FullName,
+      u.Email,
+      u.PasswordHash,
+      u.Role,
+      u.ResetToken,
+      u.ResetTokenExpiresAt,
+      u.CreatedAt,
+      u.UpdatedAt,
+      s.StatusCode,
+      c.DietitianID,
+      c.Yas,
+      c.Boy,
+      c.Kilo,
+      c.Hedef,
+      c.SonGorusme,
+      c.Durum,
+      c.Alerji,
+      c.Hastalik,
+      c.KanGrubu,
+      c.DogumTarihi,
+      c.Cinsiyet,
+      c.AktiviteSeviyesi,
+      c.KronikRahatsizlik,
+      c.KullanilanIlaclar,
+      c.AmeliyatGecmisi,
+      c.SigaraAlkol,
+      c.SaglikNotu
+    FROM Users u
+    INNER JOIN AccountStatuses s ON s.AccountStatusID = u.AccountStatusID
+    LEFT JOIN Clients c ON c.UserID = u.UserID
+    WHERE ${whereSql}
+  `);
+  return mapRowToUser(result.recordset[0]);
 }
 
-export function findUserByResetToken(token) {
-  const { users } = loadDb();
-  return users.find((u) => u.resetToken === token) ?? null;
+async function resolveAccountStatusId(executor, statusCode) {
+  const result = await executor
+    .input("statusCode", sql.NVarChar(20), statusCode)
+    .query("SELECT AccountStatusID FROM AccountStatuses WHERE StatusCode = @statusCode");
+  const id = result.recordset[0]?.AccountStatusID;
+  if (id == null) {
+    throw new Error(`AccountStatuses missing code: ${statusCode}`);
+  }
+  return id;
 }
 
-export function updateUserPassword(userId, passwordHash) {
-  const db = loadDb();
-  const user = db.users.find((u) => u.id === userId);
-  if (!user) return null;
+export async function loadDb() {
+  const pool = await getPool();
+  const [usersResult, requestsResult] = await Promise.all([
+    pool.request().query(`
+      SELECT
+        u.UserID,
+        u.FullName,
+        u.Email,
+        u.PasswordHash,
+        u.Role,
+        u.ResetToken,
+        u.ResetTokenExpiresAt,
+        u.CreatedAt,
+        u.UpdatedAt,
+        s.StatusCode,
+        c.DietitianID,
+        c.Yas,
+        c.Boy,
+        c.Kilo,
+        c.Hedef,
+        c.SonGorusme,
+        c.Durum,
+        c.Alerji,
+        c.Hastalik,
+        c.KanGrubu,
+        c.DogumTarihi,
+        c.Cinsiyet,
+        c.AktiviteSeviyesi,
+        c.KronikRahatsizlik,
+        c.KullanilanIlaclar,
+        c.AmeliyatGecmisi,
+        c.SigaraAlkol,
+        c.SaglikNotu
+      FROM Users u
+      INNER JOIN AccountStatuses s ON s.AccountStatusID = u.AccountStatusID
+      LEFT JOIN Clients c ON c.UserID = u.UserID
+    `),
+    pool.request().query(`
+      SELECT
+        RequestID,
+        DanisanUserID,
+        DietitianID,
+        Talep,
+        Tarih,
+        Durum,
+        CreatedAt
+      FROM DietitianRequests
+    `),
+  ]);
 
-  user.passwordHash = passwordHash;
-  user.resetToken = null;
-  user.resetTokenExpiresAt = null;
-  user.updatedAt = new Date().toISOString();
-
-  saveDb(db);
-  return user;
+  return {
+    users: usersResult.recordset.map(mapRowToUser),
+    requests: requestsResult.recordset.map((row) => ({
+      id: row.RequestID,
+      danisanId: row.DanisanUserID,
+      diyetisyenId: row.DietitianID,
+      talep: row.Talep,
+      tarih: row.Tarih ? String(row.Tarih).slice(0, 10) : "",
+      durum: row.Durum,
+      createdAt: iso(row.CreatedAt),
+    })),
+  };
 }
-export function updateUserProfile(userId, profileData) {
-  const db = loadDb();
-  const user = db.users.find((u) => u.id === userId);
-  if (!user) return null;
 
-  user.fullName = typeof profileData.fullName === "string"
-    ? profileData.fullName.trim()
-    : user.fullName;
-
-  user.boy = profileData.boy ?? user.boy;
-  user.kilo = profileData.kilo ?? user.kilo;
-  user.hedef = profileData.hedef ?? user.hedef;
-  user.alerji = typeof profileData.alerji === "string"
-    ? profileData.alerji.trim()
-    : user.alerji;
-  user.hastalik = typeof profileData.hastalik === "string"
-    ? profileData.hastalik.trim()
-    : user.hastalik;
-
-  user.updatedAt = new Date().toISOString();
-
-  saveDb(db);
-  return user;
+export async function findUserByEmail(email) {
+  const normalized = normalizeText(email).toLowerCase();
+  if (!normalized) return null;
+  return fetchUserByClause("u.NormalizedEmail = @email", (request) => {
+    request.input("email", sql.NVarChar(100), normalized);
+  });
 }
 
-export function updateUserHealthInfo(userId, healthData) {
-  const db = loadDb();
-  const user = db.users.find((u) => u.id === userId);
-  if (!user) return null;
+export async function getUserById(id) {
+  const userId = Number(id);
+  if (!Number.isFinite(userId)) return null;
+  return fetchUserByClause("u.UserID = @userId", (request) => {
+    request.input("userId", sql.Int, userId);
+  });
+}
 
-  user.kanGrubu = typeof healthData.kanGrubu === "string"
-    ? healthData.kanGrubu.trim()
-    : user.kanGrubu;
+export async function listApprovedDanisanlar() {
+  const pool = await getPool();
+  const result = await pool.request().query(`
+    SELECT u.UserID, u.FullName, u.Email
+    FROM Users u
+    INNER JOIN AccountStatuses s ON s.AccountStatusID = u.AccountStatusID
+    WHERE u.Role IN (N'Danisan', N'Danışan')
+      AND s.StatusCode = N'approved'
+    ORDER BY u.FullName ASC
+  `);
+  return result.recordset.map((row) => ({
+    id: row.UserID,
+    fullName: row.FullName,
+    email: row.Email?.trim().toLowerCase() ?? "",
+  }));
+}
 
-  user.dogumTarihi = typeof healthData.dogumTarihi === "string"
-    ? healthData.dogumTarihi.trim()
-    : user.dogumTarihi;
+export async function createUser({ fullName, email, passwordHash, role }) {
+  const roleDb = ROLE_API_TO_DB[role];
+  if (!roleDb) return null;
 
-  user.cinsiyet = typeof healthData.cinsiyet === "string"
-    ? healthData.cinsiyet.trim()
-    : user.cinsiyet;
+  const normalizedEmail = normalizeText(email).toLowerCase();
+  const trimmedName = normalizeText(fullName);
+  const pool = await getPool();
+  const transaction = new sql.Transaction(pool);
 
-  user.aktiviteSeviyesi = typeof healthData.aktiviteSeviyesi === "string"
-    ? healthData.aktiviteSeviyesi.trim()
-    : user.aktiviteSeviyesi;
+  try {
+    await transaction.begin();
 
-  user.kronikRahatsizlik = typeof healthData.kronikRahatsizlik === "string"
-    ? healthData.kronikRahatsizlik.trim()
-    : user.kronikRahatsizlik;
+    const duplicate = await new sql.Request(transaction)
+      .input("email", sql.NVarChar(100), normalizedEmail)
+      .query("SELECT 1 AS x FROM Users WHERE NormalizedEmail = @email");
 
-  user.kullanilanIlaclar = typeof healthData.kullanilanIlaclar === "string"
-    ? healthData.kullanilanIlaclar.trim()
-    : user.kullanilanIlaclar;
+    if (duplicate.recordset.length > 0) {
+      await transaction.rollback();
+      return null;
+    }
 
-  user.ameliyatGecmisi = typeof healthData.ameliyatGecmisi === "string"
-    ? healthData.ameliyatGecmisi.trim()
-    : user.ameliyatGecmisi;
+    const statusCode = role === "diyetisyen" ? "pending" : "approved";
+    const accountStatusId = await resolveAccountStatusId(
+      new sql.Request(transaction),
+      statusCode
+    );
 
-  user.sigaraAlkol = typeof healthData.sigaraAlkol === "string"
-    ? healthData.sigaraAlkol.trim()
-    : user.sigaraAlkol;
+    const inserted = await new sql.Request(transaction)
+      .input("fullName", sql.NVarChar(100), trimmedName)
+      .input("email", sql.NVarChar(100), normalizedEmail)
+      .input("passwordHash", sql.NVarChar(255), passwordHash)
+      .input("role", sql.NVarChar(20), roleDb)
+      .input("accountStatusId", sql.Int, accountStatusId)
+      .query(`
+        INSERT INTO Users (FullName, Email, PasswordHash, Role, AccountStatusID)
+        OUTPUT INSERTED.UserID
+        VALUES (@fullName, @email, @passwordHash, @role, @accountStatusId)
+      `);
 
-  user.saglikNotu = typeof healthData.saglikNotu === "string"
-    ? healthData.saglikNotu.trim()
-    : user.saglikNotu;
+    const userId = inserted.recordset[0].UserID;
 
-  user.updatedAt = new Date().toISOString();
+    if (role === "danisan") {
+      await new sql.Request(transaction)
+        .input("userId", sql.Int, userId)
+        .query("INSERT INTO Clients (UserID) VALUES (@userId)");
+    } else {
+      await new sql.Request(transaction)
+        .input("userId", sql.Int, userId)
+        .query("INSERT INTO Dietitians (UserID) VALUES (@userId)");
+    }
 
-  saveDb(db);
-  return user;
+    await transaction.commit();
+    return getUserById(userId);
+  } catch (error) {
+    try {
+      await transaction.rollback();
+    } catch {
+      /* ignore rollback errors */
+    }
+    if (error?.number === 2627 || error?.number === 2601) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+export async function getUserMeasurements(userId) {
+  const targetUser = await getUserById(userId);
+  if (!targetUser) return null;
+
+  const pool = await getPool();
+  const result = await pool
+    .request()
+    .input("userId", sql.Int, Number(userId))
+    .query(`
+      SELECT
+        MeasurementID,
+        Tarih,
+        Kilo,
+        Boy,
+        BelCevresi,
+        KalcaCevresi,
+        YagOrani,
+        NotText,
+        CreatedAt
+      FROM UserMeasurements
+      WHERE UserID = @userId
+      ORDER BY Tarih DESC, MeasurementID DESC
+    `);
+
+  return result.recordset.map((row) => ({
+    id: row.MeasurementID,
+    tarih: row.Tarih ? String(row.Tarih).slice(0, 10) : "",
+    kilo: row.Kilo ?? "",
+    boy: row.Boy ?? "",
+    belCevresi: row.BelCevresi ?? "",
+    kalcaCevresi: row.KalcaCevresi ?? "",
+    yagOrani: row.YagOrani ?? "",
+    not: row.NotText ?? "",
+    createdAt: iso(row.CreatedAt),
+  }));
+}
+
+export async function addUserMeasurement(userId, measurementData) {
+  const targetUser = await getUserById(userId);
+  if (!targetUser) return null;
+
+  const pool = await getPool();
+  const result = await pool
+    .request()
+    .input("userId", sql.Int, Number(userId))
+    .input("tarih", sql.Date, nullableDate(measurementData.tarih))
+    .input("kilo", sql.Decimal(5, 2), nullableNumber(measurementData.kilo))
+    .input("boy", sql.Decimal(5, 2), nullableNumber(measurementData.boy))
+    .input("belCevresi", sql.Decimal(5, 2), nullableNumber(measurementData.belCevresi))
+    .input("kalcaCevresi", sql.Decimal(5, 2), nullableNumber(measurementData.kalcaCevresi))
+    .input("yagOrani", sql.Decimal(5, 2), nullableNumber(measurementData.yagOrani))
+    .input("notText", sql.NVarChar(sql.MAX), nullableText(measurementData.not))
+    .query(`
+      INSERT INTO UserMeasurements
+        (UserID, Tarih, Kilo, Boy, BelCevresi, KalcaCevresi, YagOrani, NotText)
+      OUTPUT
+        INSERTED.MeasurementID,
+        INSERTED.Tarih,
+        INSERTED.Kilo,
+        INSERTED.Boy,
+        INSERTED.BelCevresi,
+        INSERTED.KalcaCevresi,
+        INSERTED.YagOrani,
+        INSERTED.NotText,
+        INSERTED.CreatedAt
+      VALUES
+        (@userId, @tarih, @kilo, @boy, @belCevresi, @kalcaCevresi, @yagOrani, @notText)
+    `);
+
+  const row = result.recordset[0];
+  return {
+    id: row.MeasurementID,
+    tarih: row.Tarih ? String(row.Tarih).slice(0, 10) : "",
+    kilo: row.Kilo ?? "",
+    boy: row.Boy ?? "",
+    belCevresi: row.BelCevresi ?? "",
+    kalcaCevresi: row.KalcaCevresi ?? "",
+    yagOrani: row.YagOrani ?? "",
+    not: row.NotText ?? "",
+    createdAt: iso(row.CreatedAt),
+  };
+}
+
+export async function setResetToken(email, resetToken, resetTokenExpiresAt) {
+  const normalizedEmail = normalizeText(email).toLowerCase();
+  const pool = await getPool();
+  await pool
+    .request()
+    .input("email", sql.NVarChar(100), normalizedEmail)
+    .input("resetToken", sql.NVarChar(128), resetToken)
+    .input("resetTokenExpiresAt", sql.DateTime2, resetTokenExpiresAt)
+    .query(`
+      UPDATE Users
+      SET ResetToken = @resetToken,
+          ResetTokenExpiresAt = @resetTokenExpiresAt,
+          UpdatedAt = SYSUTCDATETIME()
+      WHERE NormalizedEmail = @email
+    `);
+  return findUserByEmail(normalizedEmail);
+}
+
+export async function findUserByResetToken(token) {
+  const value = normalizeText(token);
+  if (!value) return null;
+  return fetchUserByClause("u.ResetToken = @token", (request) => {
+    request.input("token", sql.NVarChar(128), value);
+  });
+}
+
+export async function updateUserPassword(userId, passwordHash) {
+  const pool = await getPool();
+  await pool
+    .request()
+    .input("userId", sql.Int, Number(userId))
+    .input("passwordHash", sql.NVarChar(255), passwordHash)
+    .query(`
+      UPDATE Users
+      SET PasswordHash = @passwordHash,
+          ResetToken = NULL,
+          ResetTokenExpiresAt = NULL,
+          UpdatedAt = SYSUTCDATETIME()
+      WHERE UserID = @userId
+    `);
+  return getUserById(userId);
+}
+
+export async function updateUserProfile(userId, profileData) {
+  const pool = await getPool();
+  const transaction = new sql.Transaction(pool);
+
+  try {
+    await transaction.begin();
+
+    await new sql.Request(transaction)
+      .input("userId", sql.Int, Number(userId))
+      .input("fullName", sql.NVarChar(100), normalizeText(profileData.fullName))
+      .query(`
+        UPDATE Users
+        SET FullName = @fullName,
+            UpdatedAt = SYSUTCDATETIME()
+        WHERE UserID = @userId
+      `);
+
+    await new sql.Request(transaction)
+      .input("userId", sql.Int, Number(userId))
+      .input("boy", sql.Decimal(5, 2), nullableNumber(profileData.boy))
+      .input("kilo", sql.Decimal(5, 2), nullableNumber(profileData.kilo))
+      .input("hedef", sql.Decimal(5, 2), nullableNumber(profileData.hedef))
+      .input("alerji", sql.NVarChar(sql.MAX), nullableText(profileData.alerji))
+      .input("hastalik", sql.NVarChar(sql.MAX), nullableText(profileData.hastalik))
+      .query(`
+        UPDATE Clients
+        SET Boy = @boy,
+            Kilo = @kilo,
+            Hedef = @hedef,
+            Alerji = @alerji,
+            Hastalik = @hastalik,
+            UpdatedAt = SYSUTCDATETIME()
+        WHERE UserID = @userId
+      `);
+
+    await transaction.commit();
+    return getUserById(userId);
+  } catch (error) {
+    try {
+      await transaction.rollback();
+    } catch {
+      /* ignore rollback errors */
+    }
+    throw error;
+  }
+}
+
+export async function updateUserHealthInfo(userId, healthData) {
+  const pool = await getPool();
+  await pool
+    .request()
+    .input("userId", sql.Int, Number(userId))
+    .input("kanGrubu", sql.NVarChar(20), nullableText(healthData.kanGrubu))
+    .input("dogumTarihi", sql.Date, nullableDate(healthData.dogumTarihi))
+    .input("cinsiyet", sql.NVarChar(30), nullableText(healthData.cinsiyet))
+    .input("aktiviteSeviyesi", sql.NVarChar(50), nullableText(healthData.aktiviteSeviyesi))
+    .input("kronikRahatsizlik", sql.NVarChar(sql.MAX), nullableText(healthData.kronikRahatsizlik))
+    .input("kullanilanIlaclar", sql.NVarChar(sql.MAX), nullableText(healthData.kullanilanIlaclar))
+    .input("ameliyatGecmisi", sql.NVarChar(sql.MAX), nullableText(healthData.ameliyatGecmisi))
+    .input("sigaraAlkol", sql.NVarChar(sql.MAX), nullableText(healthData.sigaraAlkol))
+    .input("saglikNotu", sql.NVarChar(sql.MAX), nullableText(healthData.saglikNotu))
+    .query(`
+      UPDATE Clients
+      SET KanGrubu = @kanGrubu,
+          DogumTarihi = @dogumTarihi,
+          Cinsiyet = @cinsiyet,
+          AktiviteSeviyesi = @aktiviteSeviyesi,
+          KronikRahatsizlik = @kronikRahatsizlik,
+          KullanilanIlaclar = @kullanilanIlaclar,
+          AmeliyatGecmisi = @ameliyatGecmisi,
+          SigaraAlkol = @sigaraAlkol,
+          SaglikNotu = @saglikNotu,
+          UpdatedAt = SYSUTCDATETIME()
+      WHERE UserID = @userId
+    `);
+  return getUserById(userId);
+}
+
+export async function getClientsByDiyetisyenId(diyetisyenUserId) {
+  const pool = await getPool();
+  const result = await pool
+    .request()
+    .input("dietitianUserId", sql.Int, Number(diyetisyenUserId))
+    .query(`
+      SELECT
+        u.UserID,
+        u.FullName,
+        u.Email,
+        s.StatusCode,
+        c.Yas,
+        c.Boy,
+        c.Kilo,
+        c.Hedef,
+        c.SonGorusme,
+        c.Durum,
+        c.Alerji,
+        c.Hastalik,
+        c.DietitianID
+      FROM Clients c
+      INNER JOIN Users u ON u.UserID = c.UserID
+      INNER JOIN AccountStatuses s ON s.AccountStatusID = u.AccountStatusID
+      INNER JOIN Dietitians d ON d.DietitianID = c.DietitianID
+      WHERE d.UserID = @dietitianUserId
+      ORDER BY u.FullName ASC
+    `);
+
+  return result.recordset.map((row) => ({
+    id: row.UserID,
+    fullName: row.FullName,
+    email: row.Email?.trim().toLowerCase() ?? "",
+    role: "danisan",
+    status: row.StatusCode ?? "approved",
+    yas: row.Yas ?? "",
+    boy: row.Boy ?? "",
+    kilo: row.Kilo ?? "",
+    hedef: row.Hedef ?? "",
+    sonGorusme: row.SonGorusme ? String(row.SonGorusme).slice(0, 10) : "",
+    durum: row.Durum ?? "Pasif",
+    alerji: row.Alerji ?? "",
+    hastalik: row.Hastalik ?? "",
+    diyetisyenId: row.DietitianID ?? null,
+  }));
+}
+
+export async function getRequestsByDiyetisyenId(diyetisyenUserId) {
+  const pool = await getPool();
+  const result = await pool
+    .request()
+    .input("dietitianUserId", sql.Int, Number(diyetisyenUserId))
+    .query(`
+      SELECT
+        r.RequestID,
+        r.DanisanUserID,
+        r.DietitianID,
+        r.Talep,
+        r.Tarih,
+        r.Durum,
+        u.FullName AS DanisanAdi
+      FROM DietitianRequests r
+      INNER JOIN Dietitians d ON d.DietitianID = r.DietitianID
+      LEFT JOIN Users u ON u.UserID = r.DanisanUserID
+      WHERE d.UserID = @dietitianUserId
+        AND r.Durum = N'pending'
+      ORDER BY r.Tarih DESC, r.RequestID DESC
+    `);
+
+  return result.recordset.map((row) => ({
+    id: row.RequestID,
+    danisanId: row.DanisanUserID,
+    diyetisyenId: row.DietitianID,
+    danisanAdi: row.DanisanAdi ?? "",
+    talep: row.Talep,
+    tarih: row.Tarih ? String(row.Tarih).slice(0, 10) : "",
+    durum: row.Durum,
+  }));
+}
+
+export async function approveRequest(requestId) {
+  const pool = await getPool();
+  const transaction = new sql.Transaction(pool);
+
+  try {
+    await transaction.begin();
+
+    const requestResult = await new sql.Request(transaction)
+      .input("requestId", sql.Int, Number(requestId))
+      .query(`
+        SELECT RequestID, DanisanUserID, DietitianID, Durum
+        FROM DietitianRequests
+        WHERE RequestID = @requestId
+      `);
+
+    const row = requestResult.recordset[0];
+    if (!row) {
+      await transaction.rollback();
+      return null;
+    }
+
+    await new sql.Request(transaction)
+      .input("danisanUserId", sql.Int, row.DanisanUserID)
+      .input("dietitianId", sql.Int, row.DietitianID)
+      .query(`
+        UPDATE Clients
+        SET DietitianID = @dietitianId,
+            Durum = N'Aktif',
+            UpdatedAt = SYSUTCDATETIME()
+        WHERE UserID = @danisanUserId
+      `);
+
+    await new sql.Request(transaction)
+      .input("requestId", sql.Int, row.RequestID)
+      .query(`
+        UPDATE DietitianRequests
+        SET Durum = N'approved'
+        WHERE RequestID = @requestId
+      `);
+
+    await transaction.commit();
+    return getUserById(row.DanisanUserID);
+  } catch (error) {
+    try {
+      await transaction.rollback();
+    } catch {
+      /* ignore rollback errors */
+    }
+    throw error;
+  }
+}
+
+export async function rejectRequest(requestId) {
+  const pool = await getPool();
+  const result = await pool
+    .request()
+    .input("requestId", sql.Int, Number(requestId))
+    .query(`
+      UPDATE DietitianRequests
+      SET Durum = N'rejected'
+      OUTPUT INSERTED.RequestID
+      WHERE RequestID = @requestId
+    `);
+
+  if (result.recordset.length === 0) return null;
+  return { id: result.recordset[0].RequestID };
 }
