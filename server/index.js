@@ -35,9 +35,7 @@ import {
 if (!process.env.JWT_SECRET) {
   throw new Error("JWT_SECRET missing");
 }
-if (!process.env.MSSQL_CONNECTION_STRING) {
-  throw new Error("MSSQL_CONNECTION_STRING missing");
-}
+
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const PORT = Number(process.env.PORT) || 3001;
@@ -207,9 +205,10 @@ app.post("/api/auth/login", async (req, res) => {
     }
 
     const user = await findUserByEmail(emailCheck.value);
-    if (!user) {
-      return res.status(401).json({ error: "E-posta veya şifre hatalı." });
-    }
+
+     if (!user) {
+     return res.status(401).json({ error: "E-posta veya şifre hatalı." });
+     }
     if (user.role !== role) {
       return res.status(403).json({ error: "Bu hesap seçtiğiniz rol ile eşleşmiyor." });
     }

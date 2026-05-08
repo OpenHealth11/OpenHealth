@@ -1,13 +1,13 @@
 export const initialDiyetisyenData = {
   diyetisyen: {
-    fullName: "Dyt. Deniz Demirli",
+    fullName: "Dyt. Mustafa Yalçın",
     uzmanlik: "Klinik Beslenme",
   },
 
   danisanlar: [
     {
       id: 1,
-      fullName: "Ayşe Kaya",
+      fullName: "Gözde Yalçın",
       yas: 24,
       boy: 165,
       kilo: 68,
@@ -19,7 +19,7 @@ export const initialDiyetisyenData = {
     },
     {
       id: 2,
-      fullName: "Zeynep Demir",
+      fullName: "Arman Yalçın",
       yas: 29,
       boy: 170,
       kilo: 74,
@@ -31,7 +31,7 @@ export const initialDiyetisyenData = {
     },
     {
       id: 3,
-      fullName: "Merve Aydın",
+      fullName: "Neylan Yalçın",
       yas: 32,
       boy: 160,
       kilo: 81,
@@ -47,7 +47,7 @@ export const initialDiyetisyenData = {
     {
       id: 1,
       danisanId: 1,
-      danisanAdi: "Ayşe Kaya",
+      danisanAdi: "Gözde Yalçın",
       baslik: "Kilo Kontrol Planı",
       planTuru: "Kilo Verme",
       danisanKilo: 68,
@@ -93,7 +93,7 @@ export const initialDiyetisyenData = {
     {
       id: 2,
       danisanId: 2,
-      danisanAdi: "Zeynep Demir",
+      danisanAdi: "Arman Yalçın",
       baslik: "Yağ Yakım Planı",
       planTuru: "Kilo Verme",
       danisanKilo: 74,
@@ -141,7 +141,7 @@ export const initialDiyetisyenData = {
   gunlukKayitlar: [
     {
       id: 1,
-      danisanAdi: "Ayşe Kaya",
+      danisanAdi: "Gözde Yalçın",
       ogun: "Kahvaltı",
       detay: "Yulaf, süt, muz",
       kalori: 320,
@@ -150,7 +150,7 @@ export const initialDiyetisyenData = {
     },
     {
       id: 2,
-      danisanAdi: "Zeynep Demir",
+      danisanAdi: "Arman Yalçın",
       ogun: "Öğle",
       detay: "Tavuk salata",
       kalori: 410,
@@ -159,7 +159,7 @@ export const initialDiyetisyenData = {
     },
     {
       id: 3,
-      danisanAdi: "Ayşe Kaya",
+      danisanAdi: "Neylan Yalçın",
       ogun: "Akşam",
       detay: "Çorba, yoğurt",
       kalori: 260,
@@ -171,7 +171,7 @@ export const initialDiyetisyenData = {
   onayBekleyenler: [
     {
       id: 1,
-      danisanAdi: "Ayşe Kaya",
+      danisanAdi: "Gözd",
       talep: "Beslenme planı güncelleme isteği",
       tarih: "20.04.2026",
     },
@@ -186,17 +186,17 @@ export const initialDiyetisyenData = {
   bildirimler: [
     {
       id: 1,
-      mesaj: "Ayşe Kaya yeni bir günlük kayıt ekledi.",
+      mesaj: "Gözde Yalçın yeni bir günlük kayıt ekledi.",
       saat: "09:15",
     },
     {
       id: 2,
-      mesaj: "Zeynep Demir su hedefini tamamladı.",
+      mesaj: "Arman Yalçın su hedefini tamamladı.",
       saat: "11:40",
     },
     {
       id: 3,
-      mesaj: "Merve Aydın plan güncelleme talebi gönderdi.",
+      mesaj: "Neylan Yalçın plan güncelleme talebi gönderdi.",
       saat: "13:05",
     },
   ],
