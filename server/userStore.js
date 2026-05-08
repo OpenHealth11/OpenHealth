@@ -241,9 +241,11 @@ export function getClientsByDiyetisyenId(diyetisyenId) {
 export function getRequestsByDiyetisyenId(diyetisyenId) {
   const db = loadDb();
 
-  return db.requests.filter(
-    (r) => r.diyetisyenId === diyetisyenId && r.durum === "pending"
-  );
+ return db.requests.filter(
+  (r) =>
+    Number(r.diyetisyenId) === Number(diyetisyenId) &&
+    r.durum === "pending"
+);
 }
 
 export function approveRequest(requestId) {
@@ -276,4 +278,33 @@ export function rejectRequest(requestId) {
   saveDb(db);
 
   return request;
+}
+
+export function createRequest(danisanId, diyetisyenId) {
+  const db = loadDb();
+
+  if (!db.requests) {
+    db.requests = [];
+  }
+
+
+  const user = db.users.find(
+  (u) => Number(u.id) === Number(danisanId)
+);
+
+  const yeniTalep = {
+    id: Date.now(),
+    danisanId,
+    diyetisyenId,
+    danisanAdi: user?.fullName || "",
+    talep: "Diyetisyen atanma isteği",
+    tarih: new Date().toLocaleDateString("tr-TR"),
+    durum: "pending",
+  };
+
+  db.requests.push(yeniTalep);
+
+  saveDb(db);
+
+  return yeniTalep;
 }

@@ -8,6 +8,7 @@ import { validateEmail } from "../validation.js";
 import {
   approveRequest,
   rejectRequest,
+  createRequest,
   createUser,
   findUserByEmail,
   setResetToken,
@@ -316,6 +317,52 @@ app.post("/api/auth/reset-password", async (req, res) => {
   }
 });
 
+app.post("/api/requests", (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+
+if (!authHeader?.startsWith("Bearer ")) {
+  return res.status(401).json({
+    error: "Token gerekli.",
+  });
+}
+
+const token = authHeader.split(" ")[1];
+
+const decoded = jwt.verify(token, JWT_SECRET);
+
+    if (decoded.role !== "danisan") {
+      return res.status(403).json({
+        error: "Sadece danışan talep gönderebilir.",
+      });
+    }
+
+    const { diyetisyenId } = req.body;
+
+    if (!diyetisyenId) {
+      return res.status(400).json({
+        error: "Diyetisyen ID gerekli.",
+      });
+    }
+
+    const request = createRequest(
+      decoded.sub,
+      Number(diyetisyenId)
+    );
+
+    return res.status(201).json({
+      message: "Talep gönderildi.",
+      request,
+    });
+  } catch (e) {
+    console.error("[create-request]", e);
+
+    return res.status(500).json({
+      error: "Sunucu hatası.",
+    });
+  }
+});
+
 app.get("/api/profile", async (req, res) => {
   const user = await getUserFromAuthHeader(req);
   if (!user) {
@@ -556,7 +603,7 @@ app.get("/api/diyetisyen/danisanlar", async (req, res) => {
   return res.json({ danisanlar: await listApprovedDanisanlar() });
 });
 
-app.get("/api/diyetisyen/plans", async (req, res) => {
+/*  app.get("/api/diyetisyen/plans", async (req, res) => {
   const u = await requireDiyetisyen(req, res);
   if (!u) return;
   return res.json({ plans: await listPlansByDietitian(u.id) });
@@ -658,7 +705,7 @@ app.patch("/api/diyetisyen/plans/:id/ogunler/:planOgunId", async (req, res) => {
     console.error("[plan-ogun-patch]", e);
     return res.status(500).json({ error: "Sunucu hatası." });
   }
-});
+}); */
 
 app.delete("/api/diyetisyen/plans/:id/ogunler/:planOgunId", async (req, res) => {
   try {
