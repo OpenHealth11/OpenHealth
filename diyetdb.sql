@@ -19,6 +19,7 @@ GO
   Sadece SQL Server tarafini hizalar; uygulama koduna dokunmaz.
 */
 
+DROP TABLE IF EXISTS BloodValues;
 DROP TABLE IF EXISTS PlanOgun;
 DROP TABLE IF EXISTS BeslenmePlani;
 DROP TABLE IF EXISTS UserMeasurements;
@@ -104,6 +105,19 @@ CREATE TABLE Clients (
         FOREIGN KEY (UserID) REFERENCES Users(UserID) ON DELETE CASCADE,
     CONSTRAINT FK_Clients_Dietitians
         FOREIGN KEY (DietitianID) REFERENCES Dietitians(DietitianID)
+);
+GO
+
+CREATE TABLE BloodValues (
+    BloodValueID INT IDENTITY(1,1) PRIMARY KEY,
+    ClientID INT NOT NULL,
+    DegerAdi NVARCHAR(100) NOT NULL,
+    Birim NVARCHAR(50) NOT NULL,
+    Tarih DATE NOT NULL,
+    Sonuc NVARCHAR(50) NOT NULL,
+    CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_BloodValues_CreatedAt DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT FK_BloodValues_Clients
+        FOREIGN KEY (ClientID) REFERENCES Clients(ClientID) ON DELETE CASCADE
 );
 GO
 
@@ -230,6 +244,7 @@ CREATE INDEX IX_Users_AccountStatusID ON Users(AccountStatusID);
 CREATE INDEX IX_Clients_DietitianID ON Clients(DietitianID);
 CREATE INDEX IX_DietitianRequests_DietitianID_Durum ON DietitianRequests(DietitianID, Durum);
 CREATE INDEX IX_UserMeasurements_UserID_Tarih ON UserMeasurements(UserID, Tarih DESC);
+CREATE INDEX IX_BloodValues_ClientID_Tarih ON BloodValues(ClientID, Tarih DESC);
 CREATE INDEX IX_BeslenmePlani_DietitianUserID ON BeslenmePlani(DietitianUserID);
 CREATE INDEX IX_BeslenmePlani_ClientUserID ON BeslenmePlani(ClientUserID);
 CREATE INDEX IX_PlanOgun_PlanID_Gun ON PlanOgun(PlanID, Gun);
