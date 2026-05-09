@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { FiPlus, FiTrash2, FiSave, FiEye, FiEdit, FiX, FiInfo } from "react-icons/fi";
 
 const META_V = 1;
 
@@ -99,20 +100,18 @@ export default function PlanYonetimi({ onPlansChanged }) {
   const [danisanlar, setDanisanlar] = useState([]);
   const [plans, setPlans] = useState([]);
   const [loadState, setLoadState] = useState({ loading: true, err: "" });
-
   const [form, setForm] = useState(bosForm);
   const [duzenlenenPlanId, setDuzenlenenPlanId] = useState(null);
   const [goruntulenenPlan, setGoruntulenenPlan] = useState(null);
 
   const refreshPlans = useCallback(async () => {
     const r = await fetch("/api/diyetisyen/plans", { headers: authHeaders() });
-    if (!r.ok) {
-      throw new Error(r.status === 401 ? "Oturum gerekli." : "Planlar yüklenemedi.");
+    if (r.ok) {
+      const data = await r.json();
+      const list = data.plans || [];
+      setPlans(list);
+      onPlansChanged?.(list);
     }
-    const data = await r.json();
-    const list = data.plans || [];
-    setPlans(list);
-    onPlansChanged?.(list);
   }, [onPlansChanged]);
 
   useEffect(() => {
@@ -124,29 +123,19 @@ export default function PlanYonetimi({ onPlansChanged }) {
           fetch("/api/diyetisyen/danisanlar", { headers: authHeaders() }),
           fetch("/api/diyetisyen/plans", { headers: authHeaders() }),
         ]);
-        if (!dRes.ok || !pRes.ok) {
-          const msg =
-            dRes.status === 401 || pRes.status === 401
-              ? "Oturum gerekli; lütfen tekrar giriş yapın."
-              : "Veriler yüklenemedi.";
-          if (!cancelled) setLoadState({ loading: false, err: msg });
-          return;
-        }
+        if (cancelled) return;
         const dJson = await dRes.json();
         const pJson = await pRes.json();
-        if (cancelled) return;
         setDanisanlar(dJson.danisanlar || []);
         const list = pJson.plans || [];
         setPlans(list);
         onPlansChanged?.(list);
         setLoadState({ loading: false, err: "" });
       } catch {
-        if (!cancelled) setLoadState({ loading: false, err: "Ağ hatası." });
+        if (!cancelled) setLoadState({ loading: false, err: "Bağlantı hatası." });
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [onPlansChanged]);
 
   const toplamKalori = form.ogunler.reduce(
@@ -164,81 +153,16 @@ export default function PlanYonetimi({ onPlansChanged }) {
       : "Hedef kalori girilmedi";
 
   const todayMin = todayIsoLocal();
-  const basTrim = form.baslangicTarihi?.trim() ?? "";
-  const bitisMin =
-    basTrim && basTrim >= todayMin ? basTrim : todayMin;
-
-  const formGuncelle = (field, value) => {
-    setForm({ ...form, [field]: value });
-  };
-
-  const ogunGuncelle = (id, field, value) => {
-    setForm({
-      ...form,
-      ogunler: form.ogunler.map((ogun) =>
-        ogun.id === id ? { ...ogun, [field]: value } : ogun
-      ),
-    });
-  };
-
-  const ogunEkle = () => {
-    setForm({
-      ...form,
-      ogunler: [
-        ...form.ogunler,
-        { id: Date.now(), ogunAdi: "", saat: "", icerik: "", kalori: "" },
-      ],
-    });
-  };
-
-  const ogunSil = (id) => {
-    setForm({
-      ...form,
-      ogunler: form.ogunler.filter((ogun) => ogun.id !== id),
-    });
-  };
-
-  const formuTemizle = () => {
-    setForm(bosForm);
-    setDuzenlenenPlanId(null);
-  };
+  const bitisMin = form.baslangicTarihi && form.baslangicTarihi >= todayMin ? form.baslangicTarihi : todayMin;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (!form.clientUserId) {
-      alert("Danışan seçimi zorunludur.");
+    if (!form.clientUserId || !form.baslik.trim() || !form.baslangicTarihi) {
+      alert("Lütfen zorunlu alanları (*) doldurun.");
       return;
-    }
-    if (!form.baslik.trim()) {
-      alert("Plan başlığı zorunludur.");
-      return;
-    }
-    if (!form.baslangicTarihi?.trim()) {
-      alert("Başlangıç tarihi zorunludur.");
-      return;
-    }
-
-    const bas = form.baslangicTarihi.trim();
-    const bugun = todayIsoLocal();
-    if (bas < bugun) {
-      alert("Başlangıç tarihi bugünden önce olamaz.");
-      return;
-    }
-    const bit = form.bitisTarihi?.trim();
-    if (bit) {
-      if (bit < bugun) {
-        alert("Bitiş tarihi bugünden önce olamaz.");
-        return;
-      }
-      if (bit < bas) {
-        alert("Bitiş tarihi başlangıçtan önce olamaz.");
-        return;
-      }
     }
 
     const ogunler = buildOgunlerPayload(form, toplamKalori, kaloriDurumu);
-
     const body = {
       clientUserId: Number(form.clientUserId),
       planAdi: form.baslik.trim(),
@@ -248,373 +172,211 @@ export default function PlanYonetimi({ onPlansChanged }) {
     };
 
     try {
-      if (duzenlenenPlanId) {
-        const r = await fetch(`/api/diyetisyen/plans/${duzenlenenPlanId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json", ...authHeaders() },
-          body: JSON.stringify(body),
-        });
-        if (!r.ok) {
-          const j = await r.json().catch(() => ({}));
-          alert(j.error || "Güncelleme başarısız.");
-          return;
-        }
-        alert("Diyet planı güncellendi.");
-      } else {
-        const r = await fetch("/api/diyetisyen/plans", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...authHeaders() },
-          body: JSON.stringify(body),
-        });
-        if (!r.ok) {
-          const j = await r.json().catch(() => ({}));
-          alert(j.error || "Kayıt başarısız.");
-          return;
-        }
-        alert("Diyet planı oluşturuldu.");
-      }
-      formuTemizle();
-      await refreshPlans();
-    } catch {
-      alert("İstek gönderilemedi.");
-    }
-  };
-
-  const planiDuzenle = (plan) => {
-    setDuzenlenenPlanId(plan.id);
-    setForm(formFromApiPlan(plan, bosForm.ogunler));
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const planSil = async (id) => {
-    if (id == null || !Number.isFinite(Number(id))) {
-      alert("Geçersiz plan kimliği; sayfayı yenileyip tekrar deneyin.");
-      return;
-    }
-    if (!window.confirm("Bu planı silmek istediğinize emin misiniz?")) return;
-    try {
-      const r = await fetch(`/api/diyetisyen/plans/${encodeURIComponent(id)}`, {
-        method: "DELETE",
-        headers: authHeaders(),
+      const url = duzenlenenPlanId ? `/api/diyetisyen/plans/${duzenlenenPlanId}` : "/api/diyetisyen/plans";
+      const r = await fetch(url, {
+        method: duzenlenenPlanId ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify(body),
       });
-      if (!r.ok) {
-        const j = await r.json().catch(() => ({}));
-        alert(j.error || `Silinemedi (${r.status}).`);
-        return;
+      if (r.ok) {
+        alert(duzenlenenPlanId ? "Diyet planı güncellendi." : "Diyet planı oluşturuldu.");
+        setForm(bosForm);
+        setDuzenlenenPlanId(null);
+        await refreshPlans();
       }
-      if (duzenlenenPlanId === id) formuTemizle();
-      if (goruntulenenPlan?.id === id) setGoruntulenenPlan(null);
-      await refreshPlans();
     } catch {
       alert("İstek gönderilemedi.");
     }
   };
 
-  const gMeta = goruntulenenPlan ? parseMetaFromPlan(goruntulenenPlan) : null;
-  const detailMeals =
-    gMeta?.meals?.length ? gMeta.meals : bosForm.ogunler;
+  const inputStyle = {
+    padding: "12px",
+    borderRadius: "12px",
+    border: "1px solid #e2e8f0",
+    fontSize: "14px",
+    width: "100%",
+    outline: "none"
+  };
+
+  const cardStyle = {
+    backgroundColor: "white",
+    borderRadius: "20px",
+    padding: "30px",
+    boxShadow: "0 10px 25px rgba(0,0,0,0.05)",
+    marginBottom: "30px"
+  };
 
   return (
-    <div className="dy-page">
-      <h2 className="dy-page-title">Plan Yönetimi</h2>
+    /* GÜNCELLEME: marginLeft ve minHeight kaldırıldı */
+    <div style={{ width: "100%" }}>
+      <h2 style={{ fontSize: "24px", fontWeight: "700", color: "#1e4d3b", marginBottom: "30px" }}>Plan Yönetimi</h2>
 
-      {loadState.err && (
-        <div className="dy-card" style={{ marginBottom: 16 }}>
-          <p>{loadState.err}</p>
-        </div>
-      )}
-
-      <div className="dy-card">
-        <h3>
-          {duzenlenenPlanId
-            ? "Diyet Planını Güncelle"
-            : "Yeni Diyet Planı Oluştur"}
+      {/* Form Bölümü */}
+      <div style={cardStyle}>
+        <h3 style={{ marginBottom: "25px", fontSize: "18px", color: "#1e293b" }}>
+          {duzenlenenPlanId ? "Planı Güncelle" : "Yeni Diyet Planı Oluştur"}
         </h3>
-
         <form onSubmit={handleSubmit}>
-          <div className="dy-form-grid">
-            <select
-              value={form.clientUserId}
-              onChange={(e) => formGuncelle("clientUserId", e.target.value)}
-              disabled={loadState.loading || danisanlar.length === 0}
-            >
-              <option value="">
-                {danisanlar.length === 0
-                  ? "Onaylı danışan yok"
-                  : "Danışan seçin"}
-              </option>
-              {danisanlar.map((d) => (
-                <option key={d.id} value={String(d.id)}>
-                  {d.fullName}
-                </option>
-              ))}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "15px", marginBottom: "15px" }}>
+            <select style={inputStyle} value={form.clientUserId} onChange={(e) => setForm({...form, clientUserId: e.target.value})}>
+              <option value="">Danışan Seçin *</option>
+              {danisanlar.map(d => <option key={d.id} value={d.id}>{d.fullName}</option>)}
             </select>
-
-            <input
-              type="text"
-              placeholder="Plan başlığı"
-              value={form.baslik}
-              onChange={(e) => formGuncelle("baslik", e.target.value)}
-            />
-
-            <select
-              value={form.planTuru}
-              onChange={(e) => formGuncelle("planTuru", e.target.value)}
-            >
-              <option>Kilo Verme</option>
-              <option>Kilo Alma</option>
-              <option>Kilo Koruma</option>
-              <option>Sporcu Beslenmesi</option>
+            <input style={inputStyle} type="text" placeholder="Plan Başlığı *" value={form.baslik} onChange={(e) => setForm({...form, baslik: e.target.value})} />
+            <select style={inputStyle} value={form.planTuru} onChange={(e) => setForm({...form, planTuru: e.target.value})}>
+              <option>Kilo Verme</option><option>Kilo Alma</option><option>Kilo Koruma</option><option>Sporcu Beslenmesi</option>
             </select>
           </div>
 
-          <div className="dy-form-grid">
-            <input
-              type="number"
-              placeholder="Danışan kilosu (kg)"
-              value={form.danisanKilo}
-              onChange={(e) => formGuncelle("danisanKilo", e.target.value)}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "15px", marginBottom: "15px" }}>
+            <input 
+              style={inputStyle} 
+              type="number" 
+              placeholder="Danışan Kilosu (kg)" 
+              value={form.danisanKilo} 
+              onInput={(e) => e.target.value = e.target.value.slice(0, 3)}
+              onChange={(e) => setForm({...form, danisanKilo: e.target.value})} 
             />
-
-            <input
-              type="number"
-              placeholder="Hedef kalori (kcal)"
-              value={form.hedefKalori}
-              onChange={(e) => formGuncelle("hedefKalori", e.target.value)}
+            <input 
+              style={inputStyle} 
+              type="number" 
+              placeholder="Hedef Kalori (kcal)" 
+              value={form.hedefKalori} 
+              onInput={(e) => e.target.value = e.target.value.slice(0, 4)}
+              onChange={(e) => setForm({...form, hedefKalori: e.target.value})} 
             />
-
-            <input
-              type="number"
-              placeholder="Su hedefi (ml)"
-              value={form.suHedefi}
-              onChange={(e) => formGuncelle("suHedefi", e.target.value)}
-            />
-          </div>
-
-          <div className="dy-form-grid">
-            <input
-              type="date"
-              min={todayMin}
-              value={form.baslangicTarihi}
-              onChange={(e) => formGuncelle("baslangicTarihi", e.target.value)}
-            />
-
-            <input
-              type="date"
-              min={bitisMin}
-              value={form.bitisTarihi}
-              onChange={(e) => formGuncelle("bitisTarihi", e.target.value)}
-            />
-
-            <select
-              value={form.durum}
-              onChange={(e) => formGuncelle("durum", e.target.value)}
-            >
-              <option>Aktif</option>
-              <option>Pasif</option>
-              <option>Tamamlandı</option>
-            </select>
-          </div>
-
-          <div className="dy-form-grid">
-            <input
-              type="text"
-              placeholder="Diyetisyen notu"
-              value={form.not}
-              onChange={(e) => formGuncelle("not", e.target.value)}
+            <input 
+              style={inputStyle} 
+              type="number" 
+              placeholder="Su Hedefi (ml)" 
+              value={form.suHedefi} 
+              onInput={(e) => e.target.value = e.target.value.slice(0, 4)}
+              onChange={(e) => setForm({...form, suHedefi: e.target.value})} 
             />
           </div>
 
-          <div className="dy-card" style={{ marginTop: "20px" }}>
-            <h3>Plan Öğünleri</h3>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "15px", marginBottom: "20px" }}>
+            <label style={{ fontSize: "12px", color: "#64748b" }}>Başlangıç Tarihi *
+              <input style={{...inputStyle, marginTop: "5px"}} type="date" min={todayMin} value={form.baslangicTarihi} onChange={(e) => setForm({...form, baslangicTarihi: e.target.value})} />
+            </label>
+            <label style={{ fontSize: "12px", color: "#64748b" }}>Bitiş Tarihi
+              <input style={{...inputStyle, marginTop: "5px"}} type="date" min={bitisMin} value={form.bitisTarihi} onChange={(e) => setForm({...form, bitisTarihi: e.target.value})} />
+            </label>
+            <label style={{ fontSize: "12px", color: "#64748b" }}>Plan Durumu
+              <select style={{...inputStyle, marginTop: "5px"}} value={form.durum} onChange={(e) => setForm({...form, durum: e.target.value})}>
+                <option>Aktif</option><option>Pasif</option><option>Tamamlandı</option>
+              </select>
+            </label>
+          </div>
 
-            <div className="dy-list">
-              {form.ogunler.map((ogun) => (
-                <div className="dy-list-item" key={ogun.id}>
-                  <input
-                    type="text"
-                    placeholder="Öğün adı"
-                    value={ogun.ogunAdi}
-                    onChange={(e) =>
-                      ogunGuncelle(ogun.id, "ogunAdi", e.target.value)
-                    }
+          <textarea 
+            style={{...inputStyle, minHeight: "80px", marginBottom: "25px", resize: "none"}} 
+            placeholder="Diyetisyen Notu" 
+            value={form.not} 
+            onChange={(e) => setForm({...form, not: e.target.value})} 
+          />
+
+          <div style={{ backgroundColor: "#f8fafc", padding: "20px", borderRadius: "15px", marginBottom: "25px", overflowX: "auto" }}>
+            <h4 style={{ marginBottom: "15px", fontSize: "15px" }}>Plan Öğünleri</h4>
+            <div style={{ minWidth: "600px" }}> {/* Yatayda sıkışmaması için */}
+              {form.ogunler.map((ogun, idx) => (
+                <div key={ogun.id} style={{ display: "grid", gridTemplateColumns: "150px 100px 1fr 100px 50px", gap: "10px", marginBottom: "10px", alignItems: "center" }}>
+                  <input style={inputStyle} type="text" placeholder="Öğün" value={ogun.ogunAdi} onChange={(e) => {
+                    const n = [...form.ogunler]; n[idx].ogunAdi = e.target.value; setForm({...form, ogunler: n});
+                  }} />
+                  <input style={inputStyle} type="time" value={ogun.saat} onChange={(e) => {
+                    const n = [...form.ogunler]; n[idx].saat = e.target.value; setForm({...form, ogunler: n});
+                  }} />
+                  <input style={inputStyle} type="text" placeholder="İçerik" value={ogun.icerik} onChange={(e) => {
+                    const n = [...form.ogunler]; n[idx].icerik = e.target.value; setForm({...form, ogunler: n});
+                  }} />
+                  <input 
+                    style={inputStyle} 
+                    type="number" 
+                    placeholder="kcal" 
+                    value={ogun.kalori} 
+                    onInput={(e) => e.target.value = e.target.value.slice(0, 4)}
+                    onChange={(e) => {
+                      const n = [...form.ogunler]; n[idx].kalori = e.target.value; setForm({...form, ogunler: n});
+                    }} 
                   />
-
-                  <input
-                    type="time"
-                    value={ogun.saat}
-                    onChange={(e) =>
-                      ogunGuncelle(ogun.id, "saat", e.target.value)
-                    }
-                  />
-
-                  <input
-                    type="text"
-                    placeholder="Öğün içeriği"
-                    value={ogun.icerik}
-                    onChange={(e) =>
-                      ogunGuncelle(ogun.id, "icerik", e.target.value)
-                    }
-                  />
-
-                  <input
-                    type="number"
-                    placeholder="Kalori"
-                    value={ogun.kalori}
-                    onChange={(e) =>
-                      ogunGuncelle(ogun.id, "kalori", e.target.value)
-                    }
-                  />
-
-                  <button
-                    type="button"
-                    className="dy-danger-btn"
-                    onClick={() => ogunSil(ogun.id)}
-                  >
-                    Sil
-                  </button>
+                  <button type="button" onClick={() => setForm({...form, ogunler: form.ogunler.filter(o => o.id !== ogun.id)})} style={{ border: "none", background: "none", color: "#ef4444", cursor: "pointer" }}><FiTrash2 /></button>
                 </div>
               ))}
             </div>
-
-            <button
-              type="button"
-              className="dy-secondary-btn"
-              onClick={ogunEkle}
-              style={{ marginTop: "14px" }}
-            >
-              + Öğün Ekle
-            </button>
+            <button type="button" onClick={() => setForm({...form, ogunler: [...form.ogunler, {id: Date.now(), ogunAdi: "", saat: "", icerik: "", kalori: ""}]})} style={{ width: "100%", padding: "10px", border: "1px dashed #cbd5e1", borderRadius: "10px", color: "#64748b", cursor: "pointer", background: "white", marginTop: "10px" }}>+ Öğün Ekle</button>
           </div>
 
-          <div className="dy-action-group" style={{ marginTop: "16px" }}>
-            <button type="submit" className="dy-primary-btn" disabled={loadState.loading}>
-              {duzenlenenPlanId ? "Planı Güncelle" : "Planı Kaydet"}
-            </button>
-
-            {duzenlenenPlanId && (
-              <button
-                type="button"
-                className="dy-secondary-btn"
-                onClick={formuTemizle}
-              >
-                Güncellemeyi İptal Et
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "15px" }}>
+            <div style={{ fontSize: "14px", fontWeight: "700", color: "#1e4d3b" }}>
+              Toplam: {toplamKalori} kcal <span style={{ color: "#10b981", marginLeft: "10px" }}>({kaloriDurumu})</span>
+            </div>
+            <div style={{ display: "flex", gap: "10px" }}>
+              {duzenlenenPlanId && <button type="button" onClick={() => {setForm(bosForm); setDuzenlenenPlanId(null);}} style={{ padding: "12px 25px", borderRadius: "12px", border: "1px solid #e2e8f0", backgroundColor: "white", cursor: "pointer" }}>İptal</button>}
+              <button type="submit" style={{ padding: "12px 35px", borderRadius: "12px", border: "none", backgroundColor: "#10b981", color: "white", fontWeight: "700", cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}>
+                <FiSave /> {duzenlenenPlanId ? "Güncelle" : "Kaydet"}
               </button>
-            )}
+            </div>
           </div>
         </form>
       </div>
 
-      <div className="dy-card">
-        <h3>Mevcut Planlar</h3>
-
-        <div className="dy-list">
-          {loadState.loading ? (
-            <p>Yükleniyor…</p>
-          ) : plans.length === 0 ? (
-            <p>Henüz plan oluşturulmadı.</p>
-          ) : (
-            plans.map((plan) => {
-              const meta = parseMetaFromPlan(plan);
-              const durum = meta?.durum || "Aktif";
-              const toplam = meta?.toplamKalori ?? 0;
-              const su = meta?.suHedefi ?? "-";
-              return (
-                <div className="dy-list-item" key={plan.id}>
-                  <div>
-                    <strong>{plan.planAdi}</strong>
-                    <p>Danışan: {plan.clientFullName || `#${plan.clientUserId}`}</p>
-                    <p>Tür: {meta?.planTuru || "-"}</p>
-                    <p>Toplam Kalori: {toplam} kcal</p>
-                    <p>Su Hedefi: {su} ml</p>
-                    <p>Durum: {durum}</p>
-                  </div>
-
-                  <div className="dy-action-group">
-                    <button
-                      type="button"
-                      className="dy-primary-btn"
-                      onClick={() => setGoruntulenenPlan(plan)}
-                    >
-                      Görüntüle
-                    </button>
-
-                    <button
-                      type="button"
-                      className="dy-secondary-btn"
-                      onClick={() => planiDuzenle(plan)}
-                    >
-                      Güncelle
-                    </button>
-
-                    <button
-                      type="button"
-                      className="dy-danger-btn"
-                      onClick={() => planSil(plan.id)}
-                    >
-                      Sil
-                    </button>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
+      {/* Plan Listesi Grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "25px" }}>
+        {plans.map(plan => {
+          const m = parseMetaFromPlan(plan);
+          return (
+            <div key={plan.id} style={{ backgroundColor: "white", borderRadius: "20px", padding: "25px", boxShadow: "0 4px 15px rgba(0,0,0,0.03)", border: "1px solid #f1f5f9" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "15px" }}>
+                <span style={{ fontSize: "12px", color: "#10b981", fontWeight: "800", backgroundColor: "#ecfdf5", padding: "4px 10px", borderRadius: "20px" }}>{m?.planTuru}</span>
+                <span style={{ fontSize: "12px", color: "#94a3b8" }}>{plan.baslangicTarihi}</span>
+              </div>
+              <h4 style={{ margin: "0 0 5px 0", fontSize: "17px", color: "#1e293b" }}>{plan.planAdi}</h4>
+              <p style={{ margin: "0 0 20px 0", fontSize: "14px", color: "#64748b" }}>Danışan: <strong>{plan.clientFullName}</strong></p>
+              <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
+                <div style={{ flex: 1, padding: "10px", background: "#f8fafc", borderRadius: "10px", fontSize: "13px", textAlign: "center" }}><strong>{m?.toplamKalori}</strong> kcal</div>
+                <div style={{ flex: 1, padding: "10px", background: "#f8fafc", borderRadius: "10px", fontSize: "13px", textAlign: "center" }}><strong>{m?.suHedefi}</strong> ml Su</div>
+              </div>
+              <div style={{ display: "flex", gap: "10px" }}>
+                <button onClick={() => setGoruntulenenPlan(plan)} style={{ flex: 1, padding: "10px", borderRadius: "10px", border: "1px solid #e2e8f0", backgroundColor: "white", cursor: "pointer", fontSize: "13px", display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}><FiEye /> İzle</button>
+                <button onClick={() => { setDuzenlenenPlanId(plan.id); setForm(formFromApiPlan(plan, bosForm.ogunler)); window.scrollTo({top:0, behavior:"smooth"}); }} style={{ flex: 1, padding: "10px", borderRadius: "10px", border: "none", backgroundColor: "#eff6ff", color: "#3b82f6", cursor: "pointer", fontSize: "13px", display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}><FiEdit /> Düzenle</button>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
+      {/* Detay Modal */}
       {goruntulenenPlan && (
-        <div className="dy-card">
-          <h3>Plan Detayı</h3>
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.6)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000, backdropFilter: "blur(4px)" }}>
+          <div style={{ backgroundColor: "white", padding: "35px", borderRadius: "25px", maxWidth: "600px", width: "90%", maxHeight: "85vh", overflowY: "auto", position: "relative" }}>
+            <button onClick={() => setGoruntulenenPlan(null)} style={{ position: "absolute", top: "20px", right: "20px", border: "none", background: "none", cursor: "pointer", fontSize: "20px", color: "#64748b" }}><FiX /></button>
+            <h3 style={{ fontSize: "22px", marginBottom: "5px" }}>{goruntulenenPlan.planAdi}</h3>
+            <p style={{ color: "#10b981", fontWeight: "700", marginBottom: "20px" }}>{goruntulenenPlan.clientFullName} için hazırlanan plan</p>
+            
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "25px" }}>
+              <div style={{ padding: "15px", backgroundColor: "#f8fafc", borderRadius: "12px", fontSize: "14px" }}><strong>Tür:</strong> {parseMetaFromPlan(goruntulenenPlan)?.planTuru}</div>
+              <div style={{ padding: "15px", backgroundColor: "#f8fafc", borderRadius: "12px", fontSize: "14px" }}><strong>Hedef:</strong> {parseMetaFromPlan(goruntulenenPlan)?.hedefKalori} kcal</div>
+            </div>
 
-          <p>
-            <strong>Danışan:</strong>{" "}
-            {goruntulenenPlan.clientFullName || `#${goruntulenenPlan.clientUserId}`}
-          </p>
-          <p>
-            <strong>Başlık:</strong> {goruntulenenPlan.planAdi}
-          </p>
-          <p>
-            <strong>Plan Türü:</strong> {gMeta?.planTuru || "-"}
-          </p>
-          <p>
-            <strong>Toplam Kalori:</strong> {gMeta?.toplamKalori ?? 0} kcal
-          </p>
-          <p>
-            <strong>Hedef Kalori:</strong> {gMeta?.hedefKalori || "-"} kcal
-          </p>
-          <p>
-            <strong>Su Hedefi:</strong> {gMeta?.suHedefi || "-"} ml
-          </p>
-          <p>
-            <strong>Durum:</strong> {gMeta?.durum || "Aktif"}
-          </p>
-          <p>
-            <strong>Not:</strong> {gMeta?.not || "Not yok"}
-          </p>
-
-          <h4 style={{ marginTop: "18px" }}>Öğünler</h4>
-
-          <div className="dy-list">
-            {(detailMeals || []).map((ogun) => (
-              <div className="dy-list-item" key={ogun.id ?? ogun.ogunAdi}>
-                <div>
-                  <strong>{ogun.ogunAdi}</strong>
-                  <p>Saat: {ogun.saat || "-"}</p>
-                  <p>İçerik: {ogun.icerik || "İçerik girilmedi"}</p>
-                  <p>Kalori: {ogun.kalori || 0} kcal</p>
+            <h4 style={{ borderBottom: "1px solid #f1f5f9", paddingBottom: "10px", marginBottom: "15px" }}>Öğün Listesi</h4>
+            {(parseMetaFromPlan(goruntulenenPlan)?.meals || []).map((o, i) => (
+              <div key={i} style={{ padding: "15px 0", borderBottom: "1px solid #f8fafc" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
+                  <strong style={{ color: "#1e4d3b" }}>{o.saat} - {o.ogunAdi}</strong>
+                  <span style={{ fontSize: "12px", color: "#64748b" }}>{o.kalori} kcal</span>
                 </div>
+                <p style={{ margin: 0, fontSize: "14px", color: "#475569" }}>{o.icerik}</p>
               </div>
             ))}
-          </div>
 
-          <button
-            type="button"
-            className="dy-secondary-btn"
-            onClick={() => setGoruntulenenPlan(null)}
-            style={{ marginTop: "16px" }}
-          >
-            Detayı Kapat
-          </button>
+            <div style={{ marginTop: "20px", padding: "15px", backgroundColor: "#fffbeb", borderRadius: "12px", border: "1px solid #fef3c7" }}>
+              <strong style={{ fontSize: "13px", color: "#92400e" }}>Diyetisyen Notu:</strong>
+              <p style={{ margin: "5px 0 0 0", fontSize: "13px", color: "#b45309" }}>{parseMetaFromPlan(goruntulenenPlan)?.not || "Not eklenmemiş."}</p>
+            </div>
+
+            <button onClick={() => setGoruntulenenPlan(null)} style={{ marginTop: "30px", width: "100%", padding: "15px", borderRadius: "15px", border: "none", backgroundColor: "#1e4d3b", color: "white", fontWeight: "700", cursor: "pointer" }}>Kapat</button>
+          </div>
         </div>
       )}
     </div>
