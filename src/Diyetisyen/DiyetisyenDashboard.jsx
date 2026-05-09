@@ -1,184 +1,146 @@
 import { useState, useEffect } from "react";
+import { FiUsers, FiUserCheck, FiFileText, FiActivity, FiArrowRight } from "react-icons/fi";
+
 function DiyetisyenDashboard() {
   const [danisanlar, setDanisanlar] = useState([]);
   const [planlar, setPlanlar] = useState([]);
   const [gunlukKayitlar, setGunlukKayitlar] = useState([]);
 
   useEffect(() => {
-  const fetchData = async () => {
-    try {
-      const token = localStorage.getItem("token");
-
-      const res = await fetch("http://localhost:3001/api/diyetisyen/clients", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const data = await res.json();
-      setDanisanlar(data.clients);
-    } catch (err) {
-      console.error("Dashboard veri hatası:", err);
-    }
-  };
-
-  fetchData();
-}, []);
+    const fetchData = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch("http://localhost:3001/api/diyetisyen/clients", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        setDanisanlar(data.clients || []);
+      } catch (err) {
+        console.error("Dashboard veri hatası:", err);
+      }
+    };
+    fetchData();
+  }, []);
 
   const toplamDanisan = danisanlar.length;
   const aktifDanisan = danisanlar.filter((d) => d.durum === "Aktif").length;
-  const pasifDanisan = danisanlar.filter((d) => d.durum === "Pasif").length;
   const aktifPlan = planlar.filter((p) => p.durum === "Aktif").length;
 
   const takipGerekenler = danisanlar.filter(
     (d) => d.durum === "Pasif" || Math.abs(Number(d.kilo) - Number(d.hedef)) >= 8
   );
 
-  const hedefeYakinlar = danisanlar.filter(
-    (d) => Math.abs(Number(d.kilo) - Number(d.hedef)) <= 5
-  );
+  const cardStyle = {
+    backgroundColor: "white",
+    borderRadius: "20px",
+    padding: "25px",
+    boxShadow: "0 4px 20px rgba(0,0,0,0.03)",
+    display: "flex",
+    flexDirection: "column",
+    gap: "10px",
+    border: "1px solid #f1f5f9"
+  };
+
+  const statIconStyle = {
+    width: "45px",
+    height: "45px",
+    borderRadius: "12px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "20px",
+    marginBottom: "10px"
+  };
 
   return (
-    <div className="dy-page">
-      <div className="dy-hero-dashboard">
+    <div style={{ width: "100%" }}>
+      {/* Hero Section */}
+      <div style={{ 
+        background: "linear-gradient(135deg, #1e4d3b 0%, #2d5a4a 100%)", 
+        padding: "40px", 
+        borderRadius: "30px", 
+        color: "white", 
+        marginBottom: "30px",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center"
+      }}>
         <div>
-          <p className="dy-hero-label">Danışan Yönetimi</p>
-          <h2>Bugünkü danışan durum özeti</h2>
-          <p>
-            Aktif danışanları, hedefe yaklaşanları ve takip gerektiren kişileri
-            bu ekrandan hızlıca görebilirsiniz.
-          </p>
+          <h2 style={{ fontSize: "28px", fontWeight: "700", margin: "0 0 10px 0" }}>Hoş Geldiniz, Dyt. Mustafa</h2>
+          <p style={{ opacity: 0.8, fontSize: "16px", margin: 0 }}>Danışanlarınızın bugünkü durumunu inceleyin.</p>
         </div>
-
-        <div className="dy-hero-number">
-          <span>{toplamDanisan}</span>
-          <p>Toplam Danışan</p>
+        <div style={{ textAlign: "right" }}>
+          <span style={{ fontSize: "48px", fontWeight: "800", display: "block" }}>{toplamDanisan}</span>
+          <p style={{ margin: 0, opacity: 0.7, textTransform: "uppercase", fontSize: "12px", fontWeight: "700" }}>Toplam Danışan</p>
         </div>
       </div>
 
-      <div className="dy-modern-stats">
-        <div className="dy-modern-stat-card">
-          <span>Aktif Danışan</span>
-          <strong>{aktifDanisan}</strong>
+      {/* Stats Grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "20px", marginBottom: "30px" }}>
+        <div style={cardStyle}>
+          <div style={{ ...statIconStyle, backgroundColor: "#ecfdf5", color: "#10b981" }}><FiUsers /></div>
+          <span style={{ color: "#64748b", fontSize: "14px", fontWeight: "600" }}>Aktif Danışan</span>
+          <strong style={{ fontSize: "26px", color: "#1e293b" }}>{aktifDanisan}</strong>
         </div>
 
-        <div className="dy-modern-stat-card">
-          <span>Pasif Danışan</span>
-          <strong>{pasifDanisan}</strong>
+        <div style={cardStyle}>
+          <div style={{ ...statIconStyle, backgroundColor: "#fef2f2", color: "#ef4444" }}><FiActivity /></div>
+          <span style={{ color: "#64748b", fontSize: "14px", fontWeight: "600" }}>Takip Bekleyen</span>
+          <strong style={{ fontSize: "26px", color: "#1e293b" }}>{takipGerekenler.length}</strong>
         </div>
 
-        <div className="dy-modern-stat-card">
-          <span>Aktif Plan</span>
-          <strong>{aktifPlan}</strong>
+        <div style={cardStyle}>
+          <div style={{ ...statIconStyle, backgroundColor: "#eff6ff", color: "#3b82f6" }}><FiFileText /></div>
+          <span style={{ color: "#64748b", fontSize: "14px", fontWeight: "600" }}>Aktif Plan</span>
+          <strong style={{ fontSize: "26px", color: "#1e293b" }}>{aktifPlan}</strong>
         </div>
 
-        <div className="dy-modern-stat-card">
-          <span>Bugünkü Kayıt</span>
-          <strong>{gunlukKayitlar.length}</strong>
+        <div style={cardStyle}>
+          <div style={{ ...statIconStyle, backgroundColor: "#fdf4ff", color: "#a855f7" }}><FiUserCheck /></div>
+          <span style={{ color: "#64748b", fontSize: "14px", fontWeight: "600" }}>Günlük Kayıt</span>
+          <strong style={{ fontSize: "26px", color: "#1e293b" }}>{gunlukKayitlar.length}</strong>
         </div>
       </div>
 
-      <div className="dy-dashboard-split">
-        <div className="dy-card">
-          <h3>Öncelikli Takip Gerekenler</h3>
-
-          <div className="dy-priority-list">
+      <div style={{ display: "grid", gridTemplateColumns: "2fr 1.2fr", gap: "25px" }}>
+        {/* Liste Paneli */}
+        <div style={cardStyle}>
+          <h3 style={{ fontSize: "18px", fontWeight: "700", marginBottom: "20px", display: "flex", justifyContent: "space-between" }}>
+            Öncelikli Takip Gerekenler
+          </h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             {takipGerekenler.length === 0 ? (
-              <p>Şu an takip gerektiren danışan bulunmuyor.</p>
+              <p style={{ color: "#94a3b8", padding: "20px", textAlign: "center" }}>Şu an kritik bir durum bulunmuyor.</p>
             ) : (
-              takipGerekenler.map((d) => (
-                <div className="dy-priority-item" key={d.id}>
-                  <div>
-                    <strong>{d.fullName}</strong>
-                    <p>
-                      {d.kilo} kg → hedef {d.hedef} kg
-                    </p>
+              takipGerekenler.slice(0, 5).map((d) => (
+                <div key={d.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 15px", backgroundColor: "#f8fafc", borderRadius: "15px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <div style={{ width: "35px", height: "35px", backgroundColor: "#e2e8f0", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "700" }}>{d.fullName[0]}</div>
+                    <div>
+                      <p style={{ margin: 0, fontWeight: "600", fontSize: "14px" }}>{d.fullName}</p>
+                      <p style={{ margin: 0, fontSize: "12px", color: "#64748b" }}>{d.kilo} kg / Hedef: {d.hedef} kg</p>
+                    </div>
                   </div>
-                  <span className="dy-status passive">Takip</span>
+                  <FiArrowRight style={{ color: "#cbd5e1" }} />
                 </div>
               ))
             )}
           </div>
         </div>
 
-        <div className="dy-card">
-          <h3>Hedefe Yaklaşanlar</h3>
-
-          <div className="dy-priority-list">
-            {hedefeYakinlar.length === 0 ? (
-              <p>Henüz hedefe yaklaşan danışan yok.</p>
-            ) : (
-              hedefeYakinlar.map((d) => (
-                <div className="dy-priority-item" key={d.id}>
-                  <div>
-                    <strong>{d.fullName}</strong>
-                    <p>
-                      {d.kilo} kg → hedef {d.hedef} kg
-                    </p>
-                  </div>
-                  <span className="dy-status active">Yakın</span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="dy-card">
-        <h3>Danışan Kartları</h3>
-
-        <div className="dy-client-card-grid">
-          {danisanlar.map((d) => {
-            const fark = Math.abs(Number(d.kilo) - Number(d.hedef));
-
-            return (
-              <div className="dy-client-card" key={d.id}>
-                <div className="dy-client-top">
-                  <div className="dy-client-avatar">
-                    {d.fullName
-                      .split(" ")
-                      .map((x) => x[0])
-                      .join("")
-                      .slice(0, 2)}
-                  </div>
-
-                  <div>
-                    <h4>{d.fullName}</h4>
-                    <p>{d.yas} yaş</p>
-                  </div>
-                </div>
-
-                <div className="dy-client-info">
-                  <p>
-                    <span>Kilo</span>
-                    <strong>{d.kilo} kg</strong>
-                  </p>
-
-                  <p>
-                    <span>Hedef</span>
-                    <strong>{d.hedef} kg</strong>
-                  </p>
-
-                  <p>
-                    <span>Fark</span>
-                    <strong>{fark} kg</strong>
-                  </p>
-                </div>
-
-                <div className="dy-client-bottom">
-                  <span
-                    className={`dy-status ${
-                      d.durum === "Aktif" ? "active" : "passive"
-                    }`}
-                  >
-                    {d.durum}
-                  </span>
-
-                  <small>Son görüşme: {d.sonGorusme || "-"}</small>
-                </div>
-              </div>
-            );
-          })}
+        {/* Aksiyon Paneli */}
+        <div style={{ ...cardStyle, background: "#4ade80", border: "none", justifyContent: "center", textAlign: "center", color: "#064e3b" }}>
+          <h3 style={{ fontSize: "20px", fontWeight: "800", marginBottom: "10px" }}>Hızlı Aksiyon</h3>
+          <p style={{ fontSize: "15px", opacity: 0.9, marginBottom: "20px" }}>Bekleyen yeni danışan taleplerini hemen inceleyin.</p>
+          <button style={{ 
+            padding: "14px", 
+            borderRadius: "15px", 
+            border: "none", 
+            backgroundColor: "#1e4d3b", 
+            color: "white", 
+            fontWeight: "700",
+            cursor: "pointer"
+          }}>Talepleri Gör</button>
         </div>
       </div>
     </div>
