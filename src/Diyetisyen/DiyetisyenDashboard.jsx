@@ -1,4 +1,30 @@
-function DiyetisyenDashboard({ danisanlar = [], planlar = [], gunlukKayitlar = [] }) {
+import { useState, useEffect } from "react";
+function DiyetisyenDashboard() {
+  const [danisanlar, setDanisanlar] = useState([]);
+  const [planlar, setPlanlar] = useState([]);
+  const [gunlukKayitlar, setGunlukKayitlar] = useState([]);
+
+  useEffect(() => {
+  const fetchData = async () => {
+    try {
+      const token = localStorage.getItem("token");
+
+      const res = await fetch("http://localhost:3001/api/diyetisyen/clients", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await res.json();
+      setDanisanlar(data.clients);
+    } catch (err) {
+      console.error("Dashboard veri hatası:", err);
+    }
+  };
+
+  fetchData();
+}, []);
+
   const toplamDanisan = danisanlar.length;
   const aktifDanisan = danisanlar.filter((d) => d.durum === "Aktif").length;
   const pasifDanisan = danisanlar.filter((d) => d.durum === "Pasif").length;

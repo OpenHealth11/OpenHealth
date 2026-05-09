@@ -1,0 +1,20 @@
+# Yerel SQL Server (Linux container). Başlat: docker compose up -d
+# Sonra: CREATE DATABASE DiyetDB; ardından diyetdb.sql çalıştır (SSMS / sqlcmd).
+# .env: MSSQL_CONNECTION_STRING="Server=127.0.0.1,1433;Database=DiyetDB;User Id=sa;Password=<aynı şifre>;Encrypt=true;TrustServerCertificate=true"
+
+services:
+  sql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: openhealth-mssql
+    environment:
+      ACCEPT_EULA: "Y"
+      # PowerShell: $env:MSSQL_SA_PASSWORD='GüçlüBirSifre123!'; docker compose up -d
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:-OpenHealth_Dev_1}
+    ports:
+      - "1433:1433"
+    volumes:
+      - sql_data:/var/opt/mssql
+    restart: unless-stopped
+
+volumes:
+  sql_data:

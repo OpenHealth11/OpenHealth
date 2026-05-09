@@ -10,20 +10,17 @@ import {
 } from "react-icons/fi";
 
 function DanisanDashboard({ data }) {
-  // Toplam kaloriyi hesapla
   const toplamKalori = data.gunlukKayitlar.reduce(
     (total, item) => total + item.kalori,
     0
   );
 
-  // Su içme yüzdesini hesapla (progress bar için)
   const suYuzdesi = Math.min((data.water.icilen / data.water.hedef) * 100, 100);
 
   return (
     <div className="page" style={{ animation: "fadeIn 0.5s ease-in-out" }}>
       <h2 className="page-title" style={{ marginBottom: "25px", fontWeight: "800", color: "#1e4d3b" }}>Genel Bakış</h2>
 
-      {/* Üst Kartlar: Özet Bilgiler */}
       <div className="stats-grid" style={{ 
         display: "grid", 
         gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", 
@@ -31,7 +28,6 @@ function DanisanDashboard({ data }) {
         marginBottom: "30px" 
       }}>
         
-        {/* Kalori Kartı */}
         <div className="card stat-card" style={{ borderBottom: "5px solid #f59e0b", padding: "20px", borderRadius: "16px", backgroundColor: "white", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#64748b", fontSize: "13px", fontWeight: "700" }}>
             <FiActivity color="#f59e0b" size={18} /> GÜNLÜK KALORİ
@@ -41,7 +37,6 @@ function DanisanDashboard({ data }) {
           </p>
         </div>
 
-        {/* Su Kartı */}
         <div className="card stat-card" style={{ borderBottom: "5px solid #0ea5e9", padding: "20px", borderRadius: "16px", backgroundColor: "white", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#64748b", fontSize: "13px", fontWeight: "700" }}>
             <FiDroplet color="#0ea5e9" size={18} /> SU TAKİBİ
@@ -49,13 +44,11 @@ function DanisanDashboard({ data }) {
           <p style={{ fontSize: "28px", fontWeight: "800", margin: "10px 0", color: "#1e4d3b" }}>
             {data.water.icilen} / {data.water.hedef} <span style={{ fontSize: "14px", color: "#9ca3af", fontWeight: "400" }}>brdk</span>
           </p>
-          {/* Su İlerleme Çubuğu */}
           <div style={{ width: "100%", height: "8px", backgroundColor: "#f1f5f9", borderRadius: "10px", overflow: "hidden" }}>
             <div style={{ width: `${suYuzdesi}%`, height: "100%", backgroundColor: "#0ea5e9", transition: "width 0.5s ease-out" }} />
           </div>
         </div>
 
-        {/* Mevcut Kilo Kartı */}
         <div className="card stat-card" style={{ borderBottom: "5px solid #10b981", padding: "20px", borderRadius: "16px", backgroundColor: "white", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#64748b", fontSize: "13px", fontWeight: "700" }}>
             <FiTrendingUp color="#10b981" size={18} /> MEVCUT KİLO
@@ -65,7 +58,6 @@ function DanisanDashboard({ data }) {
           </p>
         </div>
 
-        {/* Hedef Kilo Kartı */}
         <div className="card stat-card" style={{ borderBottom: "5px solid #8b5cf6", padding: "20px", borderRadius: "16px", backgroundColor: "white", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#64748b", fontSize: "13px", fontWeight: "700" }}>
             <FiTarget color="#8b5cf6" size={18} /> HEDEF KİLO
@@ -76,14 +68,12 @@ function DanisanDashboard({ data }) {
         </div>
       </div>
 
-      {/* Alt Bölüm: Öğünler ve Son Kayıtlar */}
       <div className="two-column" style={{ 
         display: "grid", 
         gridTemplateColumns: "repeat(auto-fit, minmax(350px, 1fr))", 
         gap: "25px" 
       }}>
         
-        {/* Öğün Planı Bölümü */}
         <div className="card" style={{ padding: "25px", borderRadius: "20px", backgroundColor: "white", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.05)" }}>
           <h3 style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "18px", marginBottom: "20px", color: "#1e4d3b", fontWeight: "700" }}>
             <FiClock color="#10b981" /> Bugünkü Öğün Planı
@@ -111,7 +101,6 @@ function DanisanDashboard({ data }) {
           </div>
         </div>
 
-        {/* Son Kayıtlar Bölümü */}
         <div className="card" style={{ padding: "25px", borderRadius: "20px", backgroundColor: "white", boxShadow: "0 10px 15px -3px rgba(0,0,0,0.05)" }}>
           <h3 style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "18px", marginBottom: "20px", color: "#1e4d3b", fontWeight: "700" }}>
             <FiPlusSquare color="#3b82f6" /> Son Günlük Kayıtlar

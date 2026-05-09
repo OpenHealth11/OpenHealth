@@ -28,6 +28,26 @@ export function findUserByEmail(email) {
   return users.find((u) => u.email.toLowerCase() === email.toLowerCase()) ?? null;
 }
 
+export function getUserById(id) {
+  const db = loadDb();
+  const target = Number(id);
+  return db.users.find((u) => u.id === target) ?? null;
+}
+
+export function listApprovedDanisanlar() {
+  const { users } = loadDb();
+  return users
+    .filter(
+      (u) =>
+        u.role === "danisan" && (u.status ?? "approved") === "approved"
+    )
+    .map((u) => ({
+      id: u.id,
+      fullName: u.fullName,
+      email: u.email,
+    }));
+}
+
 export function createUser({ fullName, email, passwordHash, role }) {
   const db = loadDb();
   if (db.users.some((u) => u.email.toLowerCase() === email.toLowerCase())) {
@@ -42,6 +62,12 @@ export function createUser({ fullName, email, passwordHash, role }) {
   passwordHash,
   role,
   status,
+  
+  yas: "",
+  sonGorusme: "",
+  durum: "Pasif",
+  diyetisyenId: null,
+
   boy: "",
   kilo: "",
   hedef: "",
@@ -201,4 +227,84 @@ export function updateUserHealthInfo(userId, healthData) {
 
   saveDb(db);
   return user;
+}
+
+
+export function getClientsByDiyetisyenId(diyetisyenId) {
+  const db = loadDb();
+
+  return db.users.filter(
+    (u) => u.role === "danisan" && u.diyetisyenId === diyetisyenId
+  );
+}
+
+export function getRequestsByDiyetisyenId(diyetisyenId) {
+  const db = loadDb();
+
+ return db.requests.filter(
+  (r) =>
+    Number(r.diyetisyenId) === Number(diyetisyenId) &&
+    r.durum === "pending"
+);
+}
+
+export function approveRequest(requestId) {
+  const db = loadDb();
+
+  const request = db.requests.find((r) => r.id === requestId);
+  if (!request) return null;
+
+  const user = db.users.find((u) => u.id === request.danisanId);
+  if (!user) return null;
+
+  user.diyetisyenId = request.diyetisyenId;
+  user.durum = "Aktif";
+
+  request.durum = "approved";
+
+  saveDb(db);
+
+  return user;
+}
+
+export function rejectRequest(requestId) {
+  const db = loadDb();
+
+  const request = db.requests.find((r) => r.id === requestId);
+  if (!request) return null;
+
+  request.durum = "rejected";
+
+  saveDb(db);
+
+  return request;
+}
+
+export function createRequest(danisanId, diyetisyenId) {
+  const db = loadDb();
+
+  if (!db.requests) {
+    db.requests = [];
+  }
+
+
+  const user = db.users.find(
+  (u) => Number(u.id) === Number(danisanId)
+);
+
+  const yeniTalep = {
+    id: Date.now(),
+    danisanId,
+    diyetisyenId,
+    danisanAdi: user?.fullName || "",
+    talep: "Diyetisyen atanma isteği",
+    tarih: new Date().toLocaleDateString("tr-TR"),
+    durum: "pending",
+  };
+
+  db.requests.push(yeniTalep);
+
+  saveDb(db);
+
+  return yeniTalep;
 }

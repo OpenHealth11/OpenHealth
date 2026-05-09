@@ -42,7 +42,7 @@ function Sidebar({ activePage, setActivePage }) {
         <div className="dy-user-avatar">DYT</div>
 
         <div>
-          <p>Dyt. DENİZ DEMİRLİ</p>
+          <p>Dyt. Mustafa Yalçın</p>
           <span>Uzman Diyetisyen</span>
         </div>
       </div>

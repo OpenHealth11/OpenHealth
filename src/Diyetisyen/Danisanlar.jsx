@@ -1,8 +1,32 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
-function Danisanlar({ danisanlar = [] }) {
+function Danisanlar() {
   const [arama, setArama] = useState("");
   const [secilenDanisan, setSecilenDanisan] = useState(null);
+  const [danisanlar, setDanisanlar] = useState([]);
+
+useEffect(() => {
+  const fetchClients = async () => {
+    try {
+      const token = localStorage.getItem("token");
+
+      const res = await fetch("http://localhost:3001/api/diyetisyen/clients", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await res.json();
+      setDanisanlar(data.clients);
+    } catch (err) {
+      console.error("Danışanlar alınamadı:", err);
+    }
+  };
+
+  fetchClients();
+}, []);
+
+
 
   function bmiHesapla(kilo, boy) {
     if (!kilo || !boy) return "-";
