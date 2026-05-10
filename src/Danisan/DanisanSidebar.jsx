@@ -2,7 +2,7 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import { 
   FiHome, FiCalendar, FiEdit3, FiDroplet, 
-  FiRepeat, FiPieChart, FiUser, FiLogOut 
+  FiRepeat, FiPieChart, FiUser, FiLogOut
 } from "react-icons/fi";
 
 function DanisanSidebar({ activePage, setActivePage }) {
@@ -10,12 +10,14 @@ function DanisanSidebar({ activePage, setActivePage }) {
 
   const menuItems = [
     { key: "dashboard", label: "Sağlık Özeti", icon: <FiHome /> },
+    {key: "diyetisyenler",label: "Diyetisyenler",icon: <FiUser />},
     { key: "plan", label: "Planım", icon: <FiCalendar /> },
     { key: "gunluk", label: "Günlük Takip", icon: <FiEdit3 /> },
     { key: "su", label: "Su Takibi", icon: <FiDroplet /> },
-    { key: "takas", label: "Besin Takası", icon: <FiRepeat /> },
+    { key: "takas", label: "Besin Değişimi", icon: <FiRepeat /> },
     { key: "rapor", label: "Raporlar", icon: <FiPieChart /> },
     { key: "profil", label: "Profil", icon: <FiUser /> },
+
   ];
 
   const handleLogout = () => {
@@ -35,7 +37,6 @@ function DanisanSidebar({ activePage, setActivePage }) {
         <h1 style={{ fontSize: "24px", fontWeight: "800", margin: 0, letterSpacing: "-1px" }}>
           Diyet <span style={{ color: "#4ade80" }}>Dostu</span>
         </h1>
-        <p style={{ fontSize: "12px", opacity: 0.7, marginTop: "5px" }}>Danışan Paneli</p>
       </div>
 
       <nav style={{ flex: 1 }}>
