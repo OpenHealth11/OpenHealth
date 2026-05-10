@@ -11,6 +11,7 @@ import SuTakipPage from "./SuTakipPage";
 import BesinTakasiPage from "./BesinTakasiPage";
 import RaporPage from "./RaporPage";
 import ProfilPage from "./ProfilPage";
+import DiyetisyenlerPage from "./DiyetisyenlerPage";
 
 export default function DanisanPanel() {
   const navigate = useNavigate();
@@ -137,6 +138,7 @@ export default function DanisanPanel() {
       case "takas": return <BesinTakasiPage takasOnerileri={data.takasOnerileri} />;
       case "rapor": return <RaporPage rapor={data.haftalikRapor} />;
       case "profil": return <ProfilPage user={data.user} updateProfile={updateProfile} />;
+      case "diyetisyenler": return <DiyetisyenlerPage />;
       default: return <Dashboard data={data} />;
     }
   };
@@ -150,7 +152,7 @@ export default function DanisanPanel() {
 
       <main style={{ flex: 1, marginLeft: "280px", padding: "40px", backgroundColor: "#f8fafc" }}>
         <header className="panel-header" style={{ marginBottom: "30px", paddingBottom: "20px", borderBottom: "1px solid #e2e8f0" }}>
-          <h1 style={{ fontSize: "28px", fontWeight: "800", color: "#1e4d3b", margin: 0 }}>Danışan Paneli</h1>
+          <h1 style={{ fontSize: "28px", fontWeight: "800", color: "#1e4d3b", margin: 0 }}>Sağlıklı Yaşam</h1>
           <p style={{ color: "#64748b", margin: "5px 0 0 0" }}>Sağlık takibini ve günlük planını buradan yönetebilirsin.</p>
         </header>
 
