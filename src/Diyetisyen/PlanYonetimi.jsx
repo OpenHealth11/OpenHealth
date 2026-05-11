@@ -520,7 +520,7 @@ export default function PlanYonetimi({ onPlansChanged }) {
               const toplam = meta?.toplamKalori ?? 0;
               const su = meta?.suHedefi ?? "-";
               return (
-                <div className="dy-list-item" key={plan.id}>
+                <div className="dy-plan-item" key={plan.id}>
                   <div>
                     <strong>{plan.planAdi}</strong>
                     <p>Danışan: {plan.clientFullName || `#${plan.clientUserId}`}</p>
