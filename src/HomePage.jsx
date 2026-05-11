@@ -34,13 +34,13 @@ function HomePage() {
       <section className="hero" id="anasayfa">
         <div className="hero-content">
           <div className="hero-badge">
-            Sağlıklı yaşamı dijital takip ile destekleyen sistem
+            SAĞLIKLI YAŞAM
           </div>
 
           <h1>Diyet Dostu</h1>
 
           <p>
-            Diyet Dostu; ücretsiz kullanım sunan, besin takası sağlayan, su
+            Diyet Dostu; ücretsiz kullanım sunan, besin değişimi sağlayan, su
             takibi ve günlük besin alımı takibini destekleyen modern ve kullanıcı
             odaklı bir beslenme takip platformudur. Sağlıklı yaşam sürecini daha
             düzenli, erişilebilir ve sürdürülebilir hale getirmeyi amaçlar. 🍏
@@ -67,7 +67,7 @@ function HomePage() {
             </div>
 
             <div className="hero-card">
-              <h3>Besin Takası</h3>
+              <h3>Besin Değişimi</h3>
               <p>
                 Alternatif besin seçenekleri sunarak daha esnek bir kullanım
                 sağlar.
@@ -90,7 +90,7 @@ function HomePage() {
           <h2 className="section-title">Diyet Dostu Nedir?</h2>
           <p className="section-desc">
             Kullanıcıların beslenme süreçlerini daha kontrollü ve daha kolay
-            şekilde yönetebilmesi için tasarlanmıştır.
+            şekilde yürütebilmesini sağlar.
           </p>
         </div>
 
@@ -99,9 +99,8 @@ function HomePage() {
             Diyet Dostu, sağlıklı yaşam alışkanlıklarını desteklemek amacıyla
             geliştirilmiş dijital bir web uygulamasıdır. Sistem, bireylerin günlük
             besin tüketimini ve su alımını takip etmesine yardımcı olurken, besin
-            takası özelliği ile alternatif tüketim önerileri sunar. Ücretsiz yapısı
-            sayesinde erişilebilir bir deneyim sağlarken, modern arayüzü ile
-            kullanıcı dostu bir kullanım sunmayı hedefler.
+            değişimi özelliği ile alternatif tüketim önerileri sunar. Ücretsiz yapısı
+            sayesinde erişilebilir bir deneyim sağlar.Kullanıcı dostu bir kullanım sunmayı hedefler.
           </p>
         </div>
       </section>
@@ -128,7 +127,7 @@ function HomePage() {
 
           <div className="feature-card">
             <div className="feature-icon">🔄</div>
-            <h3>Besin Takası</h3>
+            <h3>Besin Değişimi</h3>
             <p>
               Belirli besinler yerine tercih edilebilecek alternatif seçenekler
               sunar.
