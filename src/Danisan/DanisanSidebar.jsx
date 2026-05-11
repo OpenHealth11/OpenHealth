@@ -1,23 +1,29 @@
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
-  FiHome, FiCalendar, FiEdit3, FiDroplet, 
+  FiHome, FiCalendar, FiEdit3, 
   FiRepeat, FiPieChart, FiUser, FiLogOut
 } from "react-icons/fi";
 
 function DanisanSidebar({ activePage, setActivePage }) {
   const navigate = useNavigate();
+  
+  // Aktiflik durumu için State eklendi
+  const [isOnline, setIsOnline] = useState(true);
+
+  const toggleOnlineStatus = () => {
+    setIsOnline(!isOnline);
+  };
 
   const menuItems = [
     { key: "dashboard", label: "Sağlık Özeti", icon: <FiHome /> },
-    {key: "diyetisyenler",label: "Diyetisyenler",icon: <FiUser />},
+    { key: "diyetisyenler", label: "Diyetisyenler", icon: <FiUser /> },
     { key: "plan", label: "Planım", icon: <FiCalendar /> },
     { key: "gunluk", label: "Günlük Takip", icon: <FiEdit3 /> },
-    { key: "su", label: "Su Takibi", icon: <FiDroplet /> },
+    // Su Takibi buradan kaldırıldı
     { key: "takas", label: "Besin Değişimi", icon: <FiRepeat /> },
     { key: "rapor", label: "Raporlar", icon: <FiPieChart /> },
     { key: "profil", label: "Profil", icon: <FiUser /> },
-
   ];
 
   const handleLogout = () => {
@@ -33,10 +39,36 @@ function DanisanSidebar({ activePage, setActivePage }) {
       flexDirection: "column", boxShadow: "4px 0 15px rgba(0,0,0,0.1)",
       position: "fixed", left: 0, top: 0, zIndex: 100
     }}>
-      <div style={{ marginBottom: "40px", padding: "0 10px" }}>
+      
+      {/* Buradaki div'e display: flex eklendi ki logo ve buton yan yana dursun */}
+      <div style={{ marginBottom: "40px", padding: "0 10px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <h1 style={{ fontSize: "24px", fontWeight: "800", margin: 0, letterSpacing: "-1px" }}>
           Diyet <span style={{ color: "#4ade80" }}>Dostu</span>
         </h1>
+
+        {/* Aktiflik Butonu */}
+        <button
+          onClick={toggleOnlineStatus}
+          style={{
+            display: "flex", alignItems: "center", gap: "6px",
+            padding: "6px 12px",
+            backgroundColor: isOnline ? "rgba(74, 222, 128, 0.15)" : "rgba(255, 255, 255, 0.1)",
+            border: `1px solid ${isOnline ? "rgba(74, 222, 128, 0.3)" : "rgba(255, 255, 255, 0.2)"}`,
+            borderRadius: "20px", cursor: "pointer",
+            color: isOnline ? "#4ade80" : "#94a3b8",
+            fontSize: "12px", fontWeight: "700", transition: "all 0.3s ease",
+            outline: "none"
+          }}
+        >
+          {/* Parlayan Nokta Efekti */}
+          <span style={{
+            width: "8px", height: "8px", borderRadius: "50%",
+            backgroundColor: isOnline ? "#4ade80" : "#94a3b8",
+            boxShadow: isOnline ? "0 0 8px #4ade80" : "none",
+            transition: "all 0.3s ease"
+          }}></span>
+          {isOnline ? "Çevrimiçi" : "Çevrimdışı"}
+        </button>
       </div>
 
       <nav style={{ flex: 1 }}>

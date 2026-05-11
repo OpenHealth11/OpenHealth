@@ -78,7 +78,7 @@ export default function DanisanPanel() {
     }
 
     fetchProfile();
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -279,7 +279,7 @@ export default function DanisanPanel() {
       newItem.kind === "activity"
         ? "activity"
         : String(newItem.aktivite ?? "").trim() !== "" &&
-            String(newItem.besin ?? "").trim() === ""
+          String(newItem.besin ?? "").trim() === ""
           ? "activity"
           : "meal";
 
@@ -289,6 +289,7 @@ export default function DanisanPanel() {
       if (
         !String(newItem.aktivite ?? "").trim() ||
         !Number.isFinite(sureNum) ||
+        !Number.isInteger(sureNum) ||
         sureNum <= 0
       ) {
         return;
@@ -399,10 +400,6 @@ export default function DanisanPanel() {
     }
   };
 
-  /**
-   * @param {object} payload Profil alanları (JSON ile gider)
-   * @returns {Promise<{ ok: boolean, error?: string, user?: object }>}
-   */
   const updateProfile = async (payload) => {
     const token = localStorage.getItem("token");
     if (!token?.trim()) {
@@ -537,7 +534,8 @@ export default function DanisanPanel() {
                 Sunucu özeti alınamadı; yerel özet gösteriliyor. ({reportFetchErr})
               </div>
             ) : null}
-            <RaporPage rapor={merged} />
+            {/* BAĞLANTI BURADA YAPILDI: kayitlar prop'u eklendi */}
+            <RaporPage rapor={merged} kayitlar={data.gunlukKayitlar} />
           </>
         );
       }

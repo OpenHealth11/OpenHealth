@@ -125,6 +125,17 @@ function ProfilPage({ profile, onProfileChange, onSaveProfile }) {
                 onChange={onProfileChange}
               />
             </div>
+            
+            {/* E-posta tekli satırda kalmaması için yanına aldım */}
+            <div className="dy-form-group">
+              <label>E-POSTA</label>
+              <input
+                type="email"
+                name="email"
+                value={profile.email || ""}
+                onChange={onProfileChange}
+              />
+            </div>
           </div>
 
           <div className="dy-form-group">
@@ -143,38 +154,6 @@ function ProfilPage({ profile, onProfileChange, onSaveProfile }) {
               type="text"
               name="klinik"
               value={profile.klinik || ""}
-              onChange={onProfileChange}
-            />
-          </div>
-
-          <div className="dy-form-row">
-            <div className="dy-form-group">
-              <label>TELEFON</label>
-              <input
-                type="text"
-                name="telefon"
-                value={profile.telefon || ""}
-                onChange={onProfileChange}
-              />
-            </div>
-
-            <div className="dy-form-group">
-              <label>E-POSTA</label>
-              <input
-                type="email"
-                name="email"
-                value={profile.email || ""}
-                onChange={onProfileChange}
-              />
-            </div>
-          </div>
-
-          <div className="dy-form-group">
-            <label>ŞEHİR</label>
-            <input
-              type="text"
-              name="sehir"
-              value={profile.sehir || ""}
               onChange={onProfileChange}
             />
           </div>

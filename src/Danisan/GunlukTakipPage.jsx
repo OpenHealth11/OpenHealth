@@ -1,10 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   FiPlus,
   FiTrash2,
   FiActivity,
   FiEdit3,
   FiClock,
+  FiDroplet,
+  FiMinus,
 } from "react-icons/fi";
 
 const foodEmojiMap = {
@@ -95,6 +97,17 @@ function GunlukTakipPage({
     yakilanKalori: "",
     not: "",
   });
+
+  // SU TAKİBİ STATE'İ
+  const [suBardak, setSuBardak] = useState(() => {
+    const saved = localStorage.getItem("gunlukSu");
+    return saved ? parseInt(saved) : 0;
+  });
+  const hedefBardak = 8;
+
+  useEffect(() => {
+    localStorage.setItem("gunlukSu", suBardak);
+  }, [suBardak]);
 
   const mealListe = liste.filter((item) => item.kind !== "activity");
   const aktiviteKayitlari = liste.filter((item) => item.kind === "activity");
@@ -330,6 +343,36 @@ function GunlukTakipPage({
             );
           })
         )}
+      </div>
+
+      {/* SU TAKİBİ KARTI */}
+      <div className="card" style={{ padding: "25px", borderRadius: "20px", backgroundColor: "white", marginBottom: "30px", borderTop: "5px solid #3b82f6", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "20px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
+          <div style={{ fontSize: "24px", backgroundColor: "#eff6ff", color: "#3b82f6", width: "55px", height: "55px", borderRadius: "15px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <FiDroplet />
+          </div>
+          <div>
+            <h3 style={{ margin: 0, color: "#1e4d3b", display: "flex", alignItems: "center", gap: "8px" }}>
+              Günlük Su Tüketimi
+            </h3>
+            <span style={{ color: "#64748b", fontSize: "14px" }}>Hedef: {hedefBardak} Bardak</span>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
+          <div style={{ textAlign: "right" }}>
+            <span style={{ fontSize: "28px", fontWeight: "800", color: "#3b82f6" }}>{suBardak}</span>
+            <span style={{ color: "#94a3b8", fontSize: "16px", fontWeight: "600" }}> / {hedefBardak}</span>
+          </div>
+          <div style={{ display: "flex", gap: "10px" }}>
+            <button type="button" onClick={() => setSuBardak(Math.max(0, suBardak - 1))} style={{ padding: "10px", backgroundColor: "#f1f5f9", color: "#64748b", border: "none", borderRadius: "12px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <FiMinus size={20} />
+            </button>
+            <button type="button" onClick={() => setSuBardak(suBardak + 1)} style={{ padding: "10px", backgroundColor: "#3b82f6", color: "white", border: "none", borderRadius: "12px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <FiPlus size={20} />
+            </button>
+          </div>
+        </div>
       </div>
 
       <div className="card" style={{ padding: "25px", borderRadius: "20px", backgroundColor: "white", borderTop: "5px solid #10b981" }}>

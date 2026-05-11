@@ -1,39 +1,74 @@
+import { useState } from "react";
 import "./Diyetisyen.css";
-
 import {
   FiGrid,
   FiUsers,
   FiClipboard,
   FiEdit,
   FiClock,
-  FiBell,
+  FiBell, // Zil ikonu geri geldi
   FiLogOut,
   FiUser,
 } from "react-icons/fi";
 
-
 function Sidebar({ activePage, setActivePage }) {
+  const [isOnline, setIsOnline] = useState(true);
+
+  // Bildirimler tekrar listeye eklendi
   const menuItems = [
-    { key: "dashboard", label: "Danışan Yönetimi",icon: <FiGrid /> },
-    { key: "danisanlar", label: "Danışanlar", icon: <FiUsers />, },
-    { key: "plan", label: "Plan Yönetimi",icon: <FiClipboard />, },
-    { key: "gunluk", label: "Günlük Takip", icon: <FiEdit />,},
-    { key: "onay", label: "Onay Bekleyenler",icon: <FiClock />, },
-    { key: "bildirim", label: "Bildirimler",icon: <FiBell />,},
-    {key: "profil",label: "Profilim",icon: <FiUser />,},
+    { key: "dashboard", label: "Danışan Yönetimi", icon: <FiGrid /> },
+    { key: "danisanlar", label: "Danışanlar", icon: <FiUsers /> },
+    { key: "plan", label: "Plan Yönetimi", icon: <FiClipboard /> },
+    { key: "gunluk", label: "Günlük Takip", icon: <FiEdit /> },
+    { key: "onay", label: "Onay Bekleyenler", icon: <FiClock /> },
+    { key: "bildirim", label: "Bildirimler", icon: <FiBell /> }, // Geri eklenen satır
+    { key: "profil", label: "Profilim", icon: <FiUser /> },
   ];
 
   return (
     <aside className="dy-sidebar">
       <div className="dy-sidebar-top">
-        <div className="dy-sidebar-brand">
-        
-
+        <div className="dy-sidebar-brand" style={{ 
+          display: "flex", 
+          justifyContent: "space-between", 
+          alignItems: "center",
+          paddingRight: "10px" 
+        }}>
           <div>
-            <h2 className="dy-logo">
-            <span className="white-text">Diyet</span>{" "}
-            <span className="green-text">Dostu</span>
+            <h2 className="dy-logo" style={{ margin: 0 }}>
+              <span className="white-text">Diyet</span>{" "}
+              <span className="green-text">Dostu</span>
             </h2>
+          </div>
+
+          <div 
+            onClick={() => setIsOnline(!isOnline)} 
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              backgroundColor: isOnline ? "rgba(74, 222, 128, 0.1)" : "rgba(239, 68, 68, 0.1)", 
+              padding: "5px 12px",
+              borderRadius: "20px",
+              border: `1px solid ${isOnline ? "rgba(74, 222, 128, 0.2)" : "rgba(239, 68, 68, 0.2)"}`,
+              cursor: "pointer",
+              transition: "0.3s"
+            }}
+          >
+            <div style={{
+              width: "8px",
+              height: "8px",
+              backgroundColor: isOnline ? "#4ade80" : "#ef4444", 
+              borderRadius: "50%",
+              boxShadow: isOnline ? "0 0 8px #4ade80" : "none",
+            }}></div>
+            <span style={{ 
+              color: isOnline ? "#4ade80" : "#ef4444", 
+              fontSize: "12px", 
+              fontWeight: "700" 
+            }}>
+              {isOnline ? "Çevrimiçi" : "Meşgul"}
+            </span>
           </div>
         </div>
 
@@ -47,36 +82,24 @@ function Sidebar({ activePage, setActivePage }) {
               }`}
               onClick={() => setActivePage(item.key)}
             >
-             <span className="dy-menu-icon">
-                {item.icon}
-              </span>
-
-              <span>
-                {item.label}
-              </span>
-
+              <span className="dy-menu-icon">{item.icon}</span>
+              <span>{item.label}</span>
             </button>
-
           ))}
-
         </nav>
-
       </div> 
 
       <button
-      className="dy-logout-btn"
-      onClick={() => {
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
-      window.location.href = "/login";
-     }}
-  >
-     <span className="dy-logout-icon">
-    <FiLogOut />
-    </span>
-
-  <span>Çıkış Yap</span>
-</button>
+        className="dy-logout-btn"
+        onClick={() => {
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
+          window.location.href = "/login";
+        }}
+      >
+        <span className="dy-logout-icon"><FiLogOut /></span>
+        <span>Çıkış Yap</span>
+      </button>
     </aside>
   );
 }
