@@ -1,9 +1,30 @@
 import React from "react";
 import { FiTrendingDown, FiDroplet, FiZap, FiTarget, FiPieChart } from "react-icons/fi";
 
+function formatTrRange(fromStr, toStr) {
+  if (!fromStr || !toStr) return null;
+  const parse = (s) => {
+    const [y, m, d] = String(s).slice(0, 10).split("-").map(Number);
+    return new Date(y, m - 1, d);
+  };
+  try {
+    const from = parse(fromStr);
+    const to = parse(toStr);
+    const opts = { day: "numeric", month: "long", year: "numeric" };
+    return `${from.toLocaleDateString("tr-TR", opts)} – ${to.toLocaleDateString("tr-TR", opts)}`;
+  } catch {
+    return `${fromStr} → ${toStr}`;
+  }
+}
+
 function RaporPage({ rapor }) {
-  // Eğer veri yoksa koruma ekleyelim
-  if (!rapor) return <div className="page">Yükleniyor...</div>;
+  if (!rapor) {
+    return (
+      <div className="page">
+        <p style={{ color: "#64748b" }}>Rapor özeti henüz hesaplanamadı.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="page" style={{ animation: "fadeIn 0.5s ease-in-out" }}>
@@ -13,12 +34,14 @@ function RaporPage({ rapor }) {
         <div>
           <h2 style={{ fontSize: "28px", fontWeight: "900", color: "#1e4d3b", margin: 0 }}>Haftalık Analiz</h2>
           <p style={{ color: "#64748b", margin: "5px 0 0 0", fontWeight: "500" }}>
-            Son 7 günlük performansının özeti.
+            Son {rapor.days ?? 7} günlük performansının özeti.
           </p>
         </div>
         <div style={{ backgroundColor: "white", padding: "10px 20px", borderRadius: "12px", boxShadow: "0 2px 4px rgba(0,0,0,0.05)", display: "flex", alignItems: "center", gap: "10px" }}>
           <FiPieChart color="#10b981" />
-          <span style={{ fontWeight: "700", color: "#1e4d3b", fontSize: "14px" }}>20 - 27 Nisan 2026</span>
+          <span style={{ fontWeight: "700", color: "#1e4d3b", fontSize: "14px" }}>
+            {formatTrRange(rapor.periodFrom, rapor.periodTo) ?? `Son ${rapor.days ?? 7} gün`}
+          </span>
         </div>
       </div>
 

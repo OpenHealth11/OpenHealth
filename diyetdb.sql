@@ -55,7 +55,7 @@ CREATE TABLE Users (
     NormalizedEmail AS LOWER(LTRIM(RTRIM(Email))) PERSISTED,
     PasswordHash NVARCHAR(255) NOT NULL,
     Role NVARCHAR(20) NOT NULL
-        CHECK (Role IN (N'Danisan', N'Diyetisyen')),
+        CHECK (Role IN (N'Danisan', N'Danışan', N'Diyetisyen')),
     AccountStatusID INT NOT NULL,
     ResetToken NVARCHAR(128) NULL,
     ResetTokenExpiresAt DATETIME2 NULL,
@@ -80,7 +80,6 @@ CREATE TABLE Clients (
     ClientID INT IDENTITY(1,1) PRIMARY KEY,
     UserID INT NOT NULL UNIQUE,
     DietitianID INT NULL,
-    Yas INT NULL,
     Boy DECIMAL(5,2) NULL,
     Kilo DECIMAL(5,2) NULL,
     Hedef DECIMAL(5,2) NULL,
@@ -234,3 +233,11 @@ CREATE INDEX IX_BeslenmePlani_DietitianUserID ON BeslenmePlani(DietitianUserID);
 CREATE INDEX IX_BeslenmePlani_ClientUserID ON BeslenmePlani(ClientUserID);
 CREATE INDEX IX_PlanOgun_PlanID_Gun ON PlanOgun(PlanID, Gun);
 GO
+
+/*
+  Diyetisyen genis profil (uzmanlik, telefon, okul vb.):
+  dbo.Dietitians tablosunda yalnizca DietitianID ve UserID (baglantili Users kaydi) tutulur.
+  Bu ek alanlar kalici olarak veritabaninda yok; Diyetisyen Profil sayfasindaki uzmanlik vb.
+  simdilik arayuz/mock verisidir. Kalici saklama icin Dietitians veya Users uzerine kolonlar
+  veya JSON profil alani eklenebilir.
+*/

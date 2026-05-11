@@ -1,24 +1,39 @@
 import "./Diyetisyen.css";
 
+import {
+  FiGrid,
+  FiUsers,
+  FiClipboard,
+  FiEdit,
+  FiClock,
+  FiBell,
+  FiLogOut,
+  FiUser,
+} from "react-icons/fi";
+
+
 function Sidebar({ activePage, setActivePage }) {
   const menuItems = [
-    { key: "dashboard", label: "Danışan Yönetimi" },
-    { key: "danisanlar", label: "Danışanlar" },
-    { key: "plan", label: "Plan Yönetimi" },
-    { key: "gunluk", label: "Günlük Takip" },
-    { key: "onay", label: "Onay Bekleyenler" },
-    { key: "bildirim", label: "Bildirimler" },
+    { key: "dashboard", label: "Danışan Yönetimi",icon: <FiGrid /> },
+    { key: "danisanlar", label: "Danışanlar", icon: <FiUsers />, },
+    { key: "plan", label: "Plan Yönetimi",icon: <FiClipboard />, },
+    { key: "gunluk", label: "Günlük Takip", icon: <FiEdit />,},
+    { key: "onay", label: "Onay Bekleyenler",icon: <FiClock />, },
+    { key: "bildirim", label: "Bildirimler",icon: <FiBell />,},
+    {key: "profil",label: "Profilim",icon: <FiUser />,},
   ];
 
   return (
     <aside className="dy-sidebar">
       <div className="dy-sidebar-top">
         <div className="dy-sidebar-brand">
-          <div className="dy-brand-logo">DYT</div>
+        
 
           <div>
-            <h2>Diyetisyen Paneli</h2>
-            <p>Yönetim Alanı</p>
+            <h2 className="dy-logo">
+            <span className="white-text">Diyet</span>{" "}
+            <span className="green-text">Dostu</span>
+            </h2>
           </div>
         </div>
 
@@ -32,20 +47,36 @@ function Sidebar({ activePage, setActivePage }) {
               }`}
               onClick={() => setActivePage(item.key)}
             >
-              {item.label}
+             <span className="dy-menu-icon">
+                {item.icon}
+              </span>
+
+              <span>
+                {item.label}
+              </span>
+
             </button>
+
           ))}
+
         </nav>
-      </div>
 
-      <div className="dy-sidebar-user">
-        <div className="dy-user-avatar">DYT</div>
+      </div> 
 
-        <div>
-          <p>Dyt. Mustafa Yalçın</p>
-          <span>Uzman Diyetisyen</span>
-        </div>
-      </div>
+      <button
+      className="dy-logout-btn"
+      onClick={() => {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      window.location.href = "/login";
+     }}
+  >
+     <span className="dy-logout-icon">
+    <FiLogOut />
+    </span>
+
+  <span>Çıkış Yap</span>
+</button>
     </aside>
   );
 }
