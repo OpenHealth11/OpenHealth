@@ -11,6 +11,7 @@ import PlanYonetimi from "./PlanYonetimi";
 import GunlukTakip from "./GunlukTakip";
 import OnayBekleyenler from "./OnayBekleyenler";
 import Bildirimler from "./Bildirimler";
+import ProfilPage from "./ProfilPage";
 
 function plansToDashboardRows(apiPlans) {
   if (!Array.isArray(apiPlans)) return [];
@@ -134,7 +135,8 @@ export default function DiyetisyenPanel() {
             gunlukKayitlar={data.gunlukKayitlar}
           />
         );
-
+        case "profil":
+        return <ProfilPage profile={data.diyetisyen || {}} />;
     }
   };
 

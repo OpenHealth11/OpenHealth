@@ -8,6 +8,7 @@ import {
   FiClock,
   FiBell,
   FiLogOut,
+  FiUser,
 } from "react-icons/fi";
 
 
@@ -19,6 +20,7 @@ function Sidebar({ activePage, setActivePage }) {
     { key: "gunluk", label: "Günlük Takip", icon: <FiEdit />,},
     { key: "onay", label: "Onay Bekleyenler",icon: <FiClock />, },
     { key: "bildirim", label: "Bildirimler",icon: <FiBell />,},
+    {key: "profil",label: "Profilim",icon: <FiUser />,},
   ];
 
   return (

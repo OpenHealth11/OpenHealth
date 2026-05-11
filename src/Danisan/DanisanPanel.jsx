@@ -81,7 +81,15 @@ export default function DanisanPanel() {
       ...prev,
       gunlukKayitlar: [
         ...prev.gunlukKayitlar,
-        { id: Date.now(), besin: newItem.besin, kalori: Number(newItem.kalori) },
+        {
+        id: newItem.id || Date.now(),
+        besin: newItem.besin,
+        kalori: Number(newItem.kalori),
+        ogun: newItem.ogun,
+        tarih:
+          newItem.tarih ||
+          new Date().toISOString().split("T")[0],
+      },
       ],
     }));
   };

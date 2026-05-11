@@ -122,7 +122,7 @@ function GunlukTakipPage({ kayitlar, addGunlukKayit, deleteGunlukKayit }) {
       yakilanKalori: Number(aktiviteForm.yakilanKalori || 0),
       not: aktiviteForm.not,
     };
-
+     
     setAktiviteKayitlari([yeniAktivite, ...aktiviteKayitlari]);
 
     setAktiviteForm({
