@@ -15,23 +15,50 @@ import "./Danisan.css";
 function DiyetisyenlerPage() {
   const [diyetisyenler, setDiyetisyenler] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(null);
   const [arama, setArama] = useState("");
 
   useEffect(() => {
     const fetchDiyetisyenler = async () => {
       try {
         const token = localStorage.getItem("token");
+        if (!token?.trim()) {
+          setFetchError("Giriş yapmanız gerekiyor.");
+          setDiyetisyenler([]);
+          return;
+        }
 
-        const res = await fetch("http://localhost:3001/api/danisan/diyetisyenler", {
+        const res = await fetch("/api/danisan/diyetisyenler", {
           headers: { Authorization: `Bearer ${token}` },
         });
 
         const raw = await res.text();
-        const data = raw ? JSON.parse(raw) : {};
+        let data = {};
+        try {
+          data = raw ? JSON.parse(raw) : {};
+        } catch {
+          data = {};
+        }
 
-        setDiyetisyenler(data.diyetisyenler || []);
+        if (!res.ok) {
+          setDiyetisyenler([]);
+          setFetchError(
+            data.error ||
+              (res.status === 401
+                ? "Oturum geçersiz veya süresi dolmuş; lütfen tekrar giriş yapın."
+                : `Liste alınamadı (${res.status}). Sunucunun çalıştığından emin olun (npm run server).`)
+          );
+          return;
+        }
+
+        setFetchError(null);
+        setDiyetisyenler(Array.isArray(data.diyetisyenler) ? data.diyetisyenler : []);
       } catch (err) {
         console.log(err);
+        setFetchError(
+          "API’ye bağlanılamadı. Geliştirmede `npm run dev:all` veya ayrı terminallerde hem `npm run server` hem `npm run dev` çalıştırın; önizlemede `vite preview` ile birlikte backend’in 3001 portunda açık olduğundan emin olun."
+        );
+        setDiyetisyenler([]);
       } finally {
         setLoading(false);
       }
@@ -44,7 +71,7 @@ function DiyetisyenlerPage() {
     try {
       const token = localStorage.getItem("token");
 
-      const res = await fetch("http://localhost:3001/api/danisan/diyetisyen-sec", {
+      const res = await fetch("/api/requests", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -53,12 +80,20 @@ function DiyetisyenlerPage() {
         body: JSON.stringify({ diyetisyenId: id }),
       });
 
+      const raw = await res.text();
+      let data = {};
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {
+        data = {};
+      }
+
       if (!res.ok) {
-        alert("Diyetisyen seçilemedi.");
+        alert(data.error || "Talep gönderilemedi.");
         return;
       }
 
-      alert("Diyetisyen seçildi.");
+      alert(data.message || "Talep gönderildi; diyetisyen onayı bekleniyor.");
     } catch {
       alert("Sunucuya bağlanılamadı.");
     }
@@ -95,9 +130,21 @@ function DiyetisyenlerPage() {
         />
       </div>
 
+      {fetchError ? (
+        <div className="dyt-empty-box" role="alert">
+          {fetchError}
+        </div>
+      ) : null}
+
       <div className="dyt-block-list">
-        {filtreliDiyetisyenler.length === 0 ? (
-          <div className="dyt-empty-box">Diyetisyen bulunamadı.</div>
+        {loading ? (
+          <div className="dyt-empty-box">Yükleniyor…</div>
+        ) : fetchError ? null : filtreliDiyetisyenler.length === 0 ? (
+          <div className="dyt-empty-box">
+            {diyetisyenler.length === 0
+              ? "Henüz listelenecek onaylı diyetisyen yok. Diyetisyen hesapları yönetici onayından sonra burada görünür."
+              : "Aramanızla eşleşen diyetisyen yok."}
+          </div>
         ) : (
           filtreliDiyetisyenler.map((item, index) => (
             <div className="dyt-pro-card" key={item.id}>

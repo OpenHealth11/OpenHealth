@@ -98,6 +98,9 @@ CREATE TABLE Clients (
     AmeliyatGecmisi NVARCHAR(MAX) NULL,
     SigaraAlkol NVARCHAR(MAX) NULL,
     SaglikNotu NVARCHAR(MAX) NULL,
+    KanRaporuRelativePath NVARCHAR(500) NULL,
+    KanRaporuOriginalName NVARCHAR(260) NULL,
+    KanRaporuUploadedAt DATETIME2 NULL,
     CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_Clients_CreatedAt DEFAULT SYSUTCDATETIME(),
     UpdatedAt DATETIME2 NULL,
     CONSTRAINT FK_Clients_Users
@@ -234,3 +237,14 @@ CREATE INDEX IX_BeslenmePlani_DietitianUserID ON BeslenmePlani(DietitianUserID);
 CREATE INDEX IX_BeslenmePlani_ClientUserID ON BeslenmePlani(ClientUserID);
 CREATE INDEX IX_PlanOgun_PlanID_Gun ON PlanOgun(PlanID, Gun);
 GO
+
+/*
+  Mevcut DiyetDB güncellemesi (tabloları silmeden bir kez çalıştırın):
+
+  IF COL_LENGTH('dbo.Clients', 'KanRaporuRelativePath') IS NULL
+    ALTER TABLE dbo.Clients ADD KanRaporuRelativePath NVARCHAR(500) NULL;
+  IF COL_LENGTH('dbo.Clients', 'KanRaporuOriginalName') IS NULL
+    ALTER TABLE dbo.Clients ADD KanRaporuOriginalName NVARCHAR(260) NULL;
+  IF COL_LENGTH('dbo.Clients', 'KanRaporuUploadedAt') IS NULL
+    ALTER TABLE dbo.Clients ADD KanRaporuUploadedAt DATETIME2 NULL;
+*/

@@ -38,12 +38,28 @@ export default function DiyetisyenPanel() {
   const navigate = useNavigate();
   const [activePage, setActivePage] = useState("dashboard");
   const [data, setData] = useState(initialDiyetisyenData || {});
+  const [onayBekleyenler, setOnayBekleyenler] = useState([]);
 
   const handlePlansChanged = useCallback((apiPlans) => {
     setData((prev) => ({
       ...prev,
       planlar: plansToDashboardRows(apiPlans),
     }));
+  }, []);
+
+  const fetchPendingRequests = useCallback(async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    try {
+      const r = await fetch("/api/diyetisyen/requests", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!r.ok) return;
+      const body = await r.json();
+      setOnayBekleyenler(Array.isArray(body.requests) ? body.requests : []);
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   useEffect(() => {
@@ -62,46 +78,85 @@ export default function DiyetisyenPanel() {
       .catch(() => {});
   }, []);
 
-  const onaylaTalep = (id) => {
-    const secilen = (data.onayBekleyenler || []).find((item) => item.id === id);
+  useEffect(() => {
+    if (activePage !== "onay") return;
+    fetchPendingRequests();
+  }, [activePage, fetchPendingRequests]);
 
-    setData((prev) => ({
-      ...prev,
-      onayBekleyenler: (prev.onayBekleyenler || []).filter(
-        (item) => item.id !== id
-      ),
-      bildirimler: secilen
-        ? [
-            {
-              id: Date.now(),
-              mesaj: `${secilen.danisanAdi} adlı danışanın talebi onaylandı.`,
-              saat: "Şimdi",
-            },
-            ...(prev.bildirimler || []),
-          ]
-        : prev.bildirimler || [],
-    }));
+  const onaylaTalep = async (id) => {
+    const token = localStorage.getItem("token");
+    const secilen = onayBekleyenler.find((item) => item.id === id);
+    try {
+      const res = await fetch(`/api/diyetisyen/requests/${id}/approve`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const raw = await res.text();
+      let body = {};
+      try {
+        body = raw ? JSON.parse(raw) : {};
+      } catch {
+        body = {};
+      }
+      if (!res.ok) {
+        alert(body.error || "Onaylanamadı.");
+        return;
+      }
+      setOnayBekleyenler((prev) => prev.filter((item) => item.id !== id));
+      setData((prev) => ({
+        ...prev,
+        bildirimler: secilen
+          ? [
+              {
+                id: Date.now(),
+                mesaj: `${secilen.danisanAdi} adlı danışanın talebi onaylandı.`,
+                saat: "Şimdi",
+              },
+              ...(prev.bildirimler || []),
+            ]
+          : prev.bildirimler || [],
+      }));
+    } catch {
+      alert("Sunucuya bağlanılamadı.");
+    }
   };
 
-  const reddetTalep = (id) => {
-    const secilen = (data.onayBekleyenler || []).find((item) => item.id === id);
-
-    setData((prev) => ({
-      ...prev,
-      onayBekleyenler: (prev.onayBekleyenler || []).filter(
-        (item) => item.id !== id
-      ),
-      bildirimler: secilen
-        ? [
-            {
-              id: Date.now(),
-              mesaj: `${secilen.danisanAdi} adlı danışanın talebi reddedildi.`,
-              saat: "Şimdi",
-            },
-            ...(prev.bildirimler || []),
-          ]
-        : prev.bildirimler || [],
-    }));
+  const reddetTalep = async (id) => {
+    const token = localStorage.getItem("token");
+    const secilen = onayBekleyenler.find((item) => item.id === id);
+    try {
+      const res = await fetch(`/api/diyetisyen/requests/${id}/reject`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const raw = await res.text();
+      let body = {};
+      try {
+        body = raw ? JSON.parse(raw) : {};
+      } catch {
+        body = {};
+      }
+      if (!res.ok) {
+        alert(body.error || "Talep reddedilemedi.");
+        return;
+      }
+      setOnayBekleyenler((prev) => prev.filter((item) => item.id !== id));
+      setData((prev) => ({
+        ...prev,
+        bildirimler: secilen
+          ? [
+              {
+                id: Date.now(),
+                mesaj: `${secilen.danisanAdi} adlı danışanın talebi reddedildi.`,
+                saat: "Şimdi",
+              },
+              ...(prev.bildirimler || []),
+            ]
+          : prev.bildirimler || [],
+      }));
+    } catch {
+      alert("Sunucuya bağlanılamadı.");
+    }
   };
 
   const renderPage = () => {
@@ -119,7 +174,7 @@ export default function DiyetisyenPanel() {
       case "onay":
         return (
           <OnayBekleyenler
-            talepler={data.onayBekleyenler || []}
+            talepler={onayBekleyenler}
             onaylaTalep={onaylaTalep}
             reddetTalep={reddetTalep}
           />

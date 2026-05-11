@@ -1,24 +1,28 @@
 import crypto from "crypto";
+import fs from "fs";
+import path from "path";
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { validateEmail } from "../validation.js";
+import { validateEmail, validateProfileMetrics, clampNvarcharMax4000 } from "../validation.js";
 import {
   approveRequest,
   rejectRequest,
   createRequest,
   createUser,
   findUserByEmail,
+  getUserById,
   setResetToken,
   findUserByResetToken,
   updateUserPassword,
   updateUserProfile,
   updateUserHealthInfo,
+  updateClientKanRaporu,
   getUserMeasurements,
   addUserMeasurement,
-  listApprovedDanisanlar,
+  listApprovedDietitians,
   listPendingDietitianAccounts,
   setDietitianAccountStatus,
   getClientsByDiyetisyenId,
@@ -26,6 +30,7 @@ import {
 } from "./userService.js";
 import {
   listPlansByDietitian,
+  listPlansByClient,
   getPlanByDietitian,
   createPlanForDietitian,
   updatePlanForDietitian,
@@ -34,6 +39,12 @@ import {
   deletePlanOgun,
   deletePlanByDietitian,
 } from "./planStore.js";
+import {
+  ensureUploadDirs,
+  buildKanStorageRelativePath,
+  resolveKanAbsolute,
+  unlinkQuiet,
+} from "./kanUpload.js";
 
 if (!process.env.JWT_SECRET) {
   throw new Error("JWT_SECRET missing");
@@ -46,7 +57,9 @@ const SALT_ROUNDS = 10;
 
 const app = express();
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
+
+ensureUploadDirs();
 
 const ROLES = new Set(["danisan", "diyetisyen"]);
 
@@ -71,6 +84,9 @@ function publicUser(u) {
     ameliyatGecmisi: u.ameliyatGecmisi ?? "",
     sigaraAlkol: u.sigaraAlkol ?? "",
     saglikNotu: u.saglikNotu ?? "",
+    hasKanRaporu: Boolean(u.kanRaporuRelativePath),
+    kanRaporuOriginalName: u.kanRaporuOriginalName ?? "",
+    kanRaporuUploadedAt: u.kanRaporuUploadedAt ?? "",
   };
 }
 
@@ -87,9 +103,23 @@ async function getUserFromAuthHeader(req) {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    const email = typeof decoded.email === "string" ? decoded.email : null;
-    if (!email) return null;
-    return await findUserByEmail(email);
+
+    const sub = decoded.sub;
+    if (sub != null && sub !== "") {
+      const id = Number(sub);
+      if (!Number.isNaN(id)) {
+        const byId = await getUserById(id);
+        if (byId) return byId;
+      }
+    }
+
+    const emailRaw = typeof decoded.email === "string" ? decoded.email.trim() : "";
+    if (emailRaw) {
+      const byEmail = await findUserByEmail(emailRaw);
+      if (byEmail) return byEmail;
+    }
+
+    return null;
   } catch {
     return null;
   }
@@ -150,6 +180,16 @@ function planErrorResponse(res, result) {
   }
   if (result.code === "CLIENT_INVALID") {
     return res.status(400).json({ error: "Geçerli bir danışan seçin." });
+  }
+  if (result.code === "CLIENT_NOT_ASSIGNED") {
+    return res.status(403).json({
+      error: "Plan yalnızca size atanmış danışanlar için oluşturulabilir.",
+    });
+  }
+  if (result.code === "CLIENT_NOT_ACTIVE") {
+    return res.status(403).json({
+      error: "Bu danışan henüz aktif atanmış danışanınız değil (onay bekliyor veya pasif).",
+    });
   }
   if (result.code === "NOT_FOUND") {
     return res.status(404).json({ error: "Plan veya öğün satırı bulunamadı." });
@@ -347,6 +387,70 @@ app.post("/api/auth/reset-password", async (req, res) => {
   }
 });
 
+app.get("/api/danisan/diyetisyenler", async (req, res) => {
+  const user = await getUserFromAuthHeader(req);
+  if (!user) {
+    return res.status(401).json({ error: "Yetkisiz." });
+  }
+  if (user.role !== "danisan") {
+    return res.status(403).json({ error: "Bu işlem sadece danışanlar içindir." });
+  }
+
+  const diyetisyenler = await listApprovedDietitians();
+  return res.json({ diyetisyenler });
+});
+
+app.get("/api/danisan/plans", async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Token gerekli." });
+    }
+    const token = authHeader.split(" ")[1]?.trim();
+    if (!token) {
+      return res.status(401).json({ error: "Token gerekli." });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET);
+    } catch {
+      return res.status(401).json({ error: "Oturum geçersiz veya süresi dolmuş." });
+    }
+
+    if (decoded.role !== "danisan") {
+      return res.status(403).json({
+        error:
+          "Bu ekran danışan hesapları içindir. Diyetisyen olarak giriş yaptıysanız danışan tarafında plan görünmez; danışan hesabıyla giriş yapın.",
+      });
+    }
+
+    const clientUserId = Number(decoded.sub);
+    if (!Number.isFinite(clientUserId) || clientUserId <= 0) {
+      return res.status(401).json({ error: "Geçersiz kullanıcı oturumu." });
+    }
+
+    const plans = await listPlansByClient(clientUserId);
+    console.log("[danisan-plans]", { clientUserId, planCount: plans.length });
+    const safe = plans.map((p) => ({
+      id: p.id,
+      planAdi: p.planAdi,
+      baslangicTarihi: p.baslangicTarihi,
+      bitisTarihi: p.bitisTarihi,
+      dietitianFullName: p.dietitianFullName ?? "",
+      ogunler: p.ogunler,
+    }));
+    return res.json({ plans: safe });
+  } catch (e) {
+    console.error("[danisan-plans]", e);
+    const hint =
+      e?.message?.includes("MSSQL_CONNECTION_STRING") || e?.message?.includes("not set")
+        ? " Sunucuda MSSQL_CONNECTION_STRING tanımlı mı kontrol edin."
+        : "";
+    return res.status(500).json({ error: `Sunucu hatası.${hint}` });
+  }
+});
+
 app.post("/api/requests", async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
@@ -414,19 +518,33 @@ app.put("/api/profile", async (req, res) => {
       return res.status(401).json({ error: "Yetkisiz." });
     }
 
-    const { fullName, boy, kilo, hedef, alerji, hastalik } = req.body ?? {};
+    const body = req.body ?? {};
+    const { fullName, boy, kilo, hedef, alerji, hastalik, kullanilanIlaclar, ilaclar } = body;
     const name = typeof fullName === "string" ? fullName.trim() : "";
     if (!name) {
       return res.status(400).json({ error: "Ad soyad gerekli." });
     }
+
+    const metrics = validateProfileMetrics({ boy, kilo, hedef });
+    if (!metrics.ok) {
+      return res.status(400).json({ error: metrics.error });
+    }
+
+    const ilacMetni =
+      typeof kullanilanIlaclar === "string"
+        ? kullanilanIlaclar
+        : typeof ilaclar === "string"
+          ? ilaclar
+          : "";
 
     const updated = await updateUserProfile(user.id, {
       fullName: name,
       boy,
       kilo,
       hedef,
-      alerji,
-      hastalik,
+      alerji: clampNvarcharMax4000(typeof alerji === "string" ? alerji : ""),
+      hastalik: clampNvarcharMax4000(typeof hastalik === "string" ? hastalik : ""),
+      kullanilanIlaclar: clampNvarcharMax4000(ilacMetni),
     });
 
     if (!updated) {
@@ -439,6 +557,128 @@ app.put("/api/profile", async (req, res) => {
     });
   } catch (e) {
     console.error("[profile-update]", e);
+    return res.status(500).json({ error: "Sunucu hatası." });
+  }
+});
+
+app.post("/api/profile/kan-raporu", async (req, res) => {
+  const ALLOW_KAN_MIME = {
+    "application/pdf": ".pdf",
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+  };
+
+  try {
+    const user = await getUserFromAuthHeader(req);
+    if (!user) {
+      return res.status(401).json({ error: "Yetkisiz." });
+    }
+    if (user.role !== "danisan") {
+      return res.status(403).json({ error: "Sadece danışanlar kan raporu yükleyebilir." });
+    }
+
+    const { fileBase64, mimeType, originalName } = req.body ?? {};
+    if (!fileBase64 || typeof fileBase64 !== "string") {
+      return res.status(400).json({ error: "Dosya verisi (base64) gerekli." });
+    }
+
+    const mime =
+      typeof mimeType === "string" ? mimeType.split(";")[0].trim().toLowerCase() : "";
+    const ext = ALLOW_KAN_MIME[mime];
+    if (!ext) {
+      return res.status(400).json({ error: "Yalnızca PDF veya JPG/PNG yüklenebilir." });
+    }
+
+    let buf;
+    try {
+      buf = Buffer.from(fileBase64.replace(/\s/g, ""), "base64");
+    } catch {
+      return res.status(400).json({ error: "Geçersiz dosya kodlaması." });
+    }
+
+    const MAX_BYTES = 8 * 1024 * 1024;
+    if (!buf.length || buf.length > MAX_BYTES) {
+      return res.status(400).json({ error: "Dosya çok büyük (en fazla 8 MB)." });
+    }
+
+    ensureUploadDirs();
+    const rel = buildKanStorageRelativePath(user.id, ext);
+    const abs = resolveKanAbsolute(rel);
+    if (!abs) {
+      return res.status(500).json({ error: "Kayıt yolu oluşturulamadı." });
+    }
+
+    const displayNameRaw =
+      typeof originalName === "string" && originalName.trim()
+        ? originalName.trim()
+        : `kan-raporu${ext}`;
+    const displayName = displayNameRaw.slice(0, 260);
+
+    const oldRel = user.kanRaporuRelativePath;
+    const oldAbs = oldRel ? resolveKanAbsolute(oldRel) : null;
+
+    fs.writeFileSync(abs, buf);
+
+    const updated = await updateClientKanRaporu(user.id, {
+      relativePath: rel,
+      originalName: displayName,
+    });
+
+    if (!updated) {
+      unlinkQuiet(abs);
+      return res.status(404).json({ error: "Kullanıcı bulunamadı." });
+    }
+
+    if (oldAbs && oldAbs !== abs) {
+      unlinkQuiet(oldAbs);
+    }
+
+    return res.json({
+      message: "Kan raporu kaydedildi.",
+      user: publicUser(updated),
+    });
+  } catch (e) {
+    console.error("[kan-raporu-upload]", e);
+    return res.status(500).json({ error: "Sunucu hatası." });
+  }
+});
+
+app.get("/api/profile/kan-raporu", async (req, res) => {
+  try {
+    const user = await getUserFromAuthHeader(req);
+    if (!user) {
+      return res.status(401).json({ error: "Yetkisiz." });
+    }
+    if (user.role !== "danisan") {
+      return res.status(403).json({ error: "Yetkisiz." });
+    }
+
+    const rel = user.kanRaporuRelativePath;
+    if (!rel || typeof rel !== "string") {
+      return res.status(404).json({ error: "Yüklü kan raporu yok." });
+    }
+
+    const abs = resolveKanAbsolute(rel);
+    if (!abs || !fs.existsSync(abs)) {
+      return res.status(404).json({ error: "Dosya bulunamadı." });
+    }
+
+    const orig = user.kanRaporuOriginalName || "kan-raporu.pdf";
+    const safeAscii = orig.replace(/[^\x20-\x7F]/g, "_") || "kan-raporu.pdf";
+
+    const ext = path.extname(orig).toLowerCase();
+    const ct =
+      ext === ".pdf"
+        ? "application/pdf"
+        : ext === ".png"
+          ? "image/png"
+          : "image/jpeg";
+
+    res.setHeader("Content-Type", ct);
+    res.setHeader("Content-Disposition", `attachment; filename="${safeAscii}"`);
+    fs.createReadStream(abs).pipe(res);
+  } catch (e) {
+    console.error("[kan-raporu-download]", e);
     return res.status(500).json({ error: "Sunucu hatası." });
   }
 });
@@ -566,8 +806,17 @@ app.get("/api/diyetisyen/requests", async (req, res) => {
 app.post("/api/diyetisyen/requests/:id/approve", async (req, res) => {
   const user = await getUserFromAuthHeader(req);
   if (!user) return res.status(401).json({ error: "Yetkisiz." });
+  if (user.role !== "diyetisyen") {
+    return res.status(403).json({ error: "Bu işlem sadece diyetisyenler içindir." });
+  }
 
-  const result = await approveRequest(Number(req.params.id));
+  const requestId = Number(req.params.id);
+  const mine = await getRequestsByDiyetisyenId(user.id);
+  if (!mine.some((r) => Number(r.id) === requestId)) {
+    return res.status(403).json({ error: "Bu talep size ait değil veya artık beklemiyor." });
+  }
+
+  const result = await approveRequest(requestId);
   if (!result) return res.status(404).json({ error: "Talep bulunamadı." });
 
   return res.json({ message: "Danışan atandı." });
@@ -576,8 +825,17 @@ app.post("/api/diyetisyen/requests/:id/approve", async (req, res) => {
 app.post("/api/diyetisyen/requests/:id/reject", async (req, res) => {
   const user = await getUserFromAuthHeader(req);
   if (!user) return res.status(401).json({ error: "Yetkisiz." });
+  if (user.role !== "diyetisyen") {
+    return res.status(403).json({ error: "Bu işlem sadece diyetisyenler içindir." });
+  }
 
-  const result = await rejectRequest(Number(req.params.id));
+  const requestId = Number(req.params.id);
+  const mine = await getRequestsByDiyetisyenId(user.id);
+  if (!mine.some((r) => Number(r.id) === requestId)) {
+    return res.status(403).json({ error: "Bu talep size ait değil veya artık beklemiyor." });
+  }
+
+  const result = await rejectRequest(requestId);
   if (!result) return res.status(404).json({ error: "Talep bulunamadı." });
 
   return res.json({ message: "Talep reddedildi." });
@@ -679,7 +937,14 @@ app.post("/api/measurements", async (req, res) => {
 app.get("/api/diyetisyen/danisanlar", async (req, res) => {
   const u = await requireDiyetisyen(req, res);
   if (!u) return;
-  return res.json({ danisanlar: await listApprovedDanisanlar() });
+  const clients = await getClientsByDiyetisyenId(u.id);
+  const aktif = clients.filter((c) => (c.durum ?? "").trim() === "Aktif");
+  return res.json({
+    danisanlar: aktif.map((c) => ({
+      id: c.id,
+      fullName: c.fullName,
+    })),
+  });
 });
 
 app.get("/api/diyetisyen/plans", async (req, res) => {

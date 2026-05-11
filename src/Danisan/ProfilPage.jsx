@@ -1,35 +1,133 @@
-import { useState } from "react";
-import { FiUser, FiSave, FiUpload, FiHeart, FiActivity, FiFileText } from "react-icons/fi";
+import { useEffect, useState } from "react";
+import { FiUser, FiSave, FiUpload, FiHeart, FiActivity, FiFileText, FiDownload } from "react-icons/fi";
+import { validateProfileMetrics } from "../../validation.js";
 
 function ProfilPage({ user, updateProfile }) {
   const [form, setForm] = useState({
-    fullName: user?.fullName || "",
-    boy: user?.boy || "",
-    kilo: user?.kilo || "",
-    hedef: user?.hedef || "",
-    alerji: user?.alerji || "Yok",
-    hastalik: user?.hastalik || "Yok",
-    ilaclar: user?.ilaclar || "",
-    kanDegerleriDosya: user?.kanDegerleriDosya || null,
+    fullName: "",
+    boy: "",
+    kilo: "",
+    hedef: "",
+    alerji: "Yok",
+    hastalik: "Yok",
+    ilaclar: "",
+    kanDegerleriDosya: null,
   });
 
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setForm({
+      fullName: user?.fullName || "",
+      boy: user?.boy ?? "",
+      kilo: user?.kilo ?? "",
+      hedef: user?.hedef ?? "",
+      alerji: user?.alerji || "Yok",
+      hastalik: user?.hastalik || "Yok",
+      ilaclar: user?.kullanilanIlaclar || "",
+      kanDegerleriDosya: null,
+    });
+  }, [
+    user?.id,
+    user?.fullName,
+    user?.boy,
+    user?.kilo,
+    user?.hedef,
+    user?.alerji,
+    user?.hastalik,
+    user?.kullanilanIlaclar,
+    user?.hasKanRaporu,
+    user?.kanRaporuOriginalName,
+  ]);
 
   const handleFileChange = (e) => {
-    const file = e.target.files[0];
-
-    setForm({
-      ...form,
-      kanDegerleriDosya: file,
-    });
+    const file = e.target.files?.[0];
+    setForm((prev) => ({
+      ...prev,
+      kanDegerleriDosya: file || null,
+    }));
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    updateProfile(form);
+  const kanGosterimAdi =
+    form.kanDegerleriDosya instanceof File
+      ? form.kanDegerleriDosya.name
+      : user?.hasKanRaporu && user?.kanRaporuOriginalName
+        ? user.kanRaporuOriginalName
+        : null;
 
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+  const downloadKanRaporu = async () => {
+    const token = localStorage.getItem("token");
+    if (!token?.trim()) {
+      alert("Oturum bulunamadı.");
+      return;
+    }
+    try {
+      const res = await fetch("/api/profile/kan-raporu", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const t = await res.text();
+        let j = {};
+        try {
+          j = t ? JSON.parse(t) : {};
+        } catch {
+          /* ignore */
+        }
+        alert(j.error || "Dosya indirilemedi.");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = user?.kanRaporuOriginalName || "kan-raporu.pdf";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert("İndirme başarısız.");
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    const metrics = validateProfileMetrics({
+      boy: form.boy,
+      kilo: form.kilo,
+      hedef: form.hedef,
+    });
+    if (!metrics.ok) {
+      alert(metrics.error);
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const kanFile = form.kanDegerleriDosya instanceof File ? form.kanDegerleriDosya : null;
+      const payload = {
+        fullName: form.fullName,
+        boy: form.boy,
+        kilo: form.kilo,
+        hedef: form.hedef,
+        alerji: form.alerji,
+        hastalik: form.hastalik,
+        kullanilanIlaclar: form.ilaclar,
+      };
+
+      const result = await updateProfile(payload, kanFile);
+
+      if (result?.ok) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
+        setForm((prev) => ({
+          ...prev,
+          kanDegerleriDosya: null,
+        }));
+      }
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -39,7 +137,6 @@ function ProfilPage({ user, updateProfile }) {
       </h2>
 
       <div style={pageGridStyle}>
-        {/* SOL KART */}
         <div className="card" style={leftCardStyle}>
           <div style={avatarStyle}>
             <FiUser size={50} />
@@ -72,7 +169,6 @@ function ProfilPage({ user, updateProfile }) {
             </div>
           </div>
 
-          {/* SOL TARAFI DOLDURAN SAĞLIK ÖZETİ */}
           <div style={healthBoxWrapperStyle}>
             <h4 style={healthTitleStyle}>Sağlık Özeti</h4>
 
@@ -112,19 +208,38 @@ function ProfilPage({ user, updateProfile }) {
               <div style={iconCircleStyle}>
                 <FiUpload />
               </div>
-              <div>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <span style={infoLabelStyle}>Kan Değerleri</span>
                 <p style={infoTextStyle}>
-                  {form.kanDegerleriDosya
-                    ? form.kanDegerleriDosya.name
-                    : "Henüz dosya yüklenmedi"}
+                  {kanGosterimAdi || "Henüz dosya yüklenmedi"}
                 </p>
+                {user?.hasKanRaporu ? (
+                  <button
+                    type="button"
+                    onClick={downloadKanRaporu}
+                    style={{
+                      marginTop: "10px",
+                      padding: "8px 14px",
+                      borderRadius: "10px",
+                      border: "1px solid #10b981",
+                      background: "#ecfdf5",
+                      color: "#047857",
+                      fontWeight: "700",
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "8px",
+                    }}
+                  >
+                    <FiDownload />
+                    Kayıtlı raporu indir
+                  </button>
+                ) : null}
               </div>
             </div>
           </div>
         </div>
 
-        {/* SAĞ FORM */}
         <div className="card" style={rightCardStyle}>
           <form onSubmit={handleSubmit} style={formGridStyle}>
             <div style={{ gridColumn: "span 2" }}>
@@ -134,6 +249,7 @@ function ProfilPage({ user, updateProfile }) {
                 style={inputStyle}
                 value={form.fullName}
                 onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+                required
               />
             </div>
 
@@ -142,9 +258,13 @@ function ProfilPage({ user, updateProfile }) {
               <input
                 type="number"
                 style={inputStyle}
+                min={40}
+                max={250}
+                step={0.1}
                 value={form.boy}
                 onChange={(e) => setForm({ ...form, boy: e.target.value })}
               />
+              <small style={{ color: "#94a3b8" }}>İzinli: 40–250 cm (boş bırakılabilir)</small>
             </div>
 
             <div>
@@ -152,9 +272,13 @@ function ProfilPage({ user, updateProfile }) {
               <input
                 type="number"
                 style={inputStyle}
+                min={25}
+                max={350}
+                step={0.1}
                 value={form.kilo}
                 onChange={(e) => setForm({ ...form, kilo: e.target.value })}
               />
+              <small style={{ color: "#94a3b8" }}>İzinli: 25–350 kg</small>
             </div>
 
             <div style={{ gridColumn: "span 2" }}>
@@ -162,9 +286,13 @@ function ProfilPage({ user, updateProfile }) {
               <input
                 type="number"
                 style={inputStyle}
+                min={25}
+                max={350}
+                step={0.1}
                 value={form.hedef}
                 onChange={(e) => setForm({ ...form, hedef: e.target.value })}
               />
+              <small style={{ color: "#94a3b8" }}>İzinli: 25–350 kg</small>
             </div>
 
             <div>
@@ -196,6 +324,7 @@ function ProfilPage({ user, updateProfile }) {
                   resize: "vertical",
                 }}
                 placeholder="Örn: D vitamini, demir ilacı, tiroid ilacı..."
+                maxLength={4000}
                 value={form.ilaclar}
                 onChange={(e) => setForm({ ...form, ilaclar: e.target.value })}
               />
@@ -208,11 +337,11 @@ function ProfilPage({ user, updateProfile }) {
                 <FiUpload />
                 {form.kanDegerleriDosya
                   ? form.kanDegerleriDosya.name
-                  : "PDF / Görsel dosya seç"}
+                  : "PDF veya JPG/PNG seç (en fazla 8 MB)"}
 
                 <input
                   type="file"
-                  accept=".pdf,.jpg,.jpeg,.png"
+                  accept=".pdf,.jpg,.jpeg,.png,application/pdf"
                   onChange={handleFileChange}
                   style={{ display: "none" }}
                 />
@@ -221,13 +350,15 @@ function ProfilPage({ user, updateProfile }) {
 
             <button
               type="submit"
+              disabled={saving}
               style={{
                 ...buttonStyle,
                 backgroundColor: saved ? "#10b981" : "#1e4d3b",
+                opacity: saving ? 0.7 : 1,
               }}
             >
               <FiSave />
-              {saved ? "Değişiklikler Kaydedildi!" : "Bilgileri Güncelle"}
+              {saving ? "Kaydediliyor…" : saved ? "Kaydedildi!" : "Bilgileri Güncelle"}
             </button>
           </form>
         </div>

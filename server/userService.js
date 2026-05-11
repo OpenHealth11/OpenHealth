@@ -30,6 +30,12 @@ export async function listApprovedDanisanlar() {
     : j(jsonStore.listApprovedDanisanlar());
 }
 
+export async function listApprovedDietitians() {
+  return useSqlUsers()
+    ? sqlRepo.listApprovedDietitians()
+    : j(jsonStore.listApprovedDietitians());
+}
+
 export async function setResetToken(email, resetToken, resetTokenExpiresAt) {
   return useSqlUsers()
     ? sqlRepo.setResetToken(email, resetToken, resetTokenExpiresAt)
@@ -58,6 +64,12 @@ export async function updateUserHealthInfo(userId, healthData) {
   return useSqlUsers()
     ? sqlRepo.updateUserHealthInfo(userId, healthData)
     : j(jsonStore.updateUserHealthInfo(userId, healthData));
+}
+
+export async function updateClientKanRaporu(userId, payload) {
+  return useSqlUsers()
+    ? sqlRepo.updateClientKanRaporu(userId, payload)
+    : j(jsonStore.updateClientKanRaporu(userId, payload));
 }
 
 export async function getUserMeasurements(userId) {

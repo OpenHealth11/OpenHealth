@@ -27,7 +27,8 @@ SELECT u.UserID, u.FullName, u.Email, u.PasswordHash, u.Role, u.CreatedAt,
        dt.UserID AS DietitianUserID,
        c.Yas, c.Boy, c.Kilo, c.Hedef, c.SonGorusme, c.Durum, c.Alerji, c.Hastalik,
        c.KanGrubu, c.DogumTarihi, c.Cinsiyet, c.AktiviteSeviyesi, c.KronikRahatsizlik,
-       c.KullanilanIlaclar, c.AmeliyatGecmisi, c.SigaraAlkol, c.SaglikNotu
+       c.KullanilanIlaclar, c.AmeliyatGecmisi, c.SigaraAlkol, c.SaglikNotu,
+       c.KanRaporuRelativePath, c.KanRaporuOriginalName, c.KanRaporuUploadedAt
 `;
 
 function fmtNum(v) {
@@ -76,6 +77,12 @@ export function mapFullUser(row) {
     ameliyatGecmisi: row.AmeliyatGecmisi ?? "",
     sigaraAlkol: row.SigaraAlkol ?? "",
     saglikNotu: row.SaglikNotu ?? "",
+    kanRaporuRelativePath: row.KanRaporuRelativePath ?? "",
+    kanRaporuOriginalName: row.KanRaporuOriginalName ?? "",
+    kanRaporuUploadedAt:
+      row.KanRaporuUploadedAt instanceof Date
+        ? row.KanRaporuUploadedAt.toISOString()
+        : row.KanRaporuUploadedAt ?? "",
     measurements: [],
   };
 }
@@ -145,6 +152,22 @@ export async function listApprovedDanisanlar() {
     id: r.id,
     fullName: r.fullName,
     email: r.email,
+  }));
+}
+
+export async function listApprovedDietitians() {
+  const pool = await getPool();
+  const result = await pool.request().query(`
+    SELECT u.UserID AS id, u.FullName AS fullName, u.Email AS email
+    FROM Users u
+    INNER JOIN AccountStatuses s ON s.AccountStatusID = u.AccountStatusID
+    WHERE u.Role = N'Diyetisyen' AND s.StatusCode = N'approved'
+    ORDER BY u.FullName
+  `);
+  return result.recordset.map((r) => ({
+    id: r.id,
+    fullName: r.fullName,
+    email: String(r.email ?? "").trim().toLowerCase(),
   }));
 }
 
@@ -292,9 +315,11 @@ export async function updateUserProfile(userId, profileData) {
     .input("hedef", sql.Decimal(5, 2), profileData.hedef === "" || profileData.hedef == null ? null : Number(profileData.hedef))
     .input("alerji", sql.NVarChar(4000), profileData.alerji ?? "")
     .input("hastalik", sql.NVarChar(4000), profileData.hastalik ?? "")
+    .input("ilaclar", sql.NVarChar(4000), profileData.kullanilanIlaclar ?? "")
     .query(`
       UPDATE Users SET FullName = @fullName, UpdatedAt = SYSUTCDATETIME() WHERE UserID = @id;
-      UPDATE Clients SET Boy = @boy, Kilo = @kilo, Hedef = @hedef, Alerji = @alerji, Hastalik = @hastalik, UpdatedAt = SYSUTCDATETIME()
+      UPDATE Clients SET Boy = @boy, Kilo = @kilo, Hedef = @hedef, Alerji = @alerji, Hastalik = @hastalik,
+          KullanilanIlaclar = @ilaclar, UpdatedAt = SYSUTCDATETIME()
       WHERE UserID = @id;
     `);
   return getUserById(id);
@@ -333,6 +358,25 @@ export async function updateUserHealthInfo(userId, healthData) {
         SaglikNotu = @notu,
         UpdatedAt = SYSUTCDATETIME()
       WHERE UserID = @id;
+    `);
+  return getUserById(id);
+}
+
+export async function updateClientKanRaporu(userId, { relativePath, originalName }) {
+  const pool = await getPool();
+  const id = Number(userId);
+  await pool
+    .request()
+    .input("id", sql.Int, id)
+    .input("rel", sql.NVarChar(500), relativePath)
+    .input("orig", sql.NVarChar(260), String(originalName ?? "").slice(0, 260))
+    .query(`
+      UPDATE Clients SET
+        KanRaporuRelativePath = @rel,
+        KanRaporuOriginalName = @orig,
+        KanRaporuUploadedAt = SYSUTCDATETIME(),
+        UpdatedAt = SYSUTCDATETIME()
+      WHERE UserID = @id
     `);
   return getUserById(id);
 }

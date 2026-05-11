@@ -48,6 +48,20 @@ export function listApprovedDanisanlar() {
     }));
 }
 
+export function listApprovedDietitians() {
+  const { users } = loadDb();
+  return users
+    .filter(
+      (u) =>
+        u.role === "diyetisyen" && (u.status ?? "approved") === "approved"
+    )
+    .map((u) => ({
+      id: u.id,
+      fullName: u.fullName,
+      email: u.email,
+    }));
+}
+
 export function createUser({ fullName, email, passwordHash, role }) {
   const db = loadDb();
   if (db.users.some((u) => u.email.toLowerCase() === email.toLowerCase())) {
@@ -176,6 +190,11 @@ export function updateUserProfile(userId, profileData) {
     ? profileData.hastalik.trim()
     : user.hastalik;
 
+  user.kullanilanIlaclar =
+    typeof profileData.kullanilanIlaclar === "string"
+      ? profileData.kullanilanIlaclar.trim()
+      : user.kullanilanIlaclar;
+
   user.updatedAt = new Date().toISOString();
 
   saveDb(db);
@@ -225,6 +244,18 @@ export function updateUserHealthInfo(userId, healthData) {
 
   user.updatedAt = new Date().toISOString();
 
+  saveDb(db);
+  return user;
+}
+
+export function updateClientKanRaporu(userId, { relativePath, originalName }) {
+  const db = loadDb();
+  const user = db.users.find((u) => Number(u.id) === Number(userId));
+  if (!user) return null;
+  user.kanRaporuRelativePath = relativePath;
+  user.kanRaporuOriginalName = typeof originalName === "string" ? originalName.slice(0, 260) : "";
+  user.kanRaporuUploadedAt = new Date().toISOString();
+  user.updatedAt = user.kanRaporuUploadedAt;
   saveDb(db);
   return user;
 }
