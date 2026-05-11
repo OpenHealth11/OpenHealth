@@ -249,3 +249,25 @@ CREATE INDEX IX_BeslenmePlani_DietitianUserID ON BeslenmePlani(DietitianUserID);
 CREATE INDEX IX_BeslenmePlani_ClientUserID ON BeslenmePlani(ClientUserID);
 CREATE INDEX IX_PlanOgun_PlanID_Gun ON PlanOgun(PlanID, Gun);
 GO
+
+CREATE TABLE SuTuketimi (
+    SuTuketimiID INT IDENTITY(1,1) PRIMARY KEY,
+    ClientID INT NOT NULL,
+    MiktarML INT NOT NULL,
+    Tarih DATE NOT NULL DEFAULT CAST(GETDATE() AS DATE),
+
+    CONSTRAINT FK_SuTuketimi_Clients
+        FOREIGN KEY (ClientID)
+        REFERENCES Clients(ClientID)
+        ON DELETE CASCADE
+);
+GO
+
+CREATE INDEX IX_SuTuketimi_ClientID_Tarih
+ON SuTuketimi(ClientID, Tarih DESC);
+
+GO
+
+SELECT TOP 20 * FROM Clients;
+SELECT TOP 20 * FROM Dietitians;
+SELECT TOP 20 * FROM Users;
