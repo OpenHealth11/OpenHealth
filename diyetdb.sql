@@ -288,6 +288,26 @@ ON AktiviteTakibi(ClientID, Tarih DESC);
 
 GO
 
+CREATE TABLE OgunKayitlari (
+    OgunID INT IDENTITY(1,1) PRIMARY KEY,
+    DanisanID INT NOT NULL,
+    OgunTipi NVARCHAR(50) NOT NULL,
+    Kalori INT NULL,
+    Icerik NVARCHAR(MAX) NULL,
+    Tarih DATE NOT NULL DEFAULT CAST(GETDATE() AS DATE),
+
+    CONSTRAINT FK_OgunKayitlari_Clients
+        FOREIGN KEY (DanisanID)
+        REFERENCES Clients(ClientID)
+        ON DELETE CASCADE
+);
+GO
+
+CREATE INDEX IX_OgunKayitlari_DanisanID_Tarih
+ON OgunKayitlari(DanisanID, Tarih DESC);
+
+GO
+
 SELECT TOP 20 * FROM Clients;
 SELECT TOP 20 * FROM Dietitians;
 SELECT TOP 20 * FROM Users;
