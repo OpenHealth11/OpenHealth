@@ -1,11 +1,13 @@
-function Bildirimler({ bildirimler }) {
+function Bildirimler({ bildirimler = [] }) {
+  const liste = Array.isArray(bildirimler) ? bildirimler : [];
+
   return (
     <div className="dy-page">
       <h2 className="dy-page-title">Bildirimler</h2>
 
       <div className="dy-card">
         <div className="dy-list">
-          {bildirimler.map((item) => (
+          {liste.map((item) => (
             <div className="dy-list-item" key={item.id}>
               <div>
                 <strong>{item.mesaj}</strong>

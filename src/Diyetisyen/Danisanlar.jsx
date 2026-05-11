@@ -5,26 +5,30 @@ function Danisanlar() {
   const [secilenDanisan, setSecilenDanisan] = useState(null);
   const [danisanlar, setDanisanlar] = useState([]);
 
-useEffect(() => {
-  const fetchClients = async () => {
-    try {
+  useEffect(() => {
+    async function fetchClients() {
       const token = localStorage.getItem("token");
+      if (!token) return;
 
-      const res = await fetch("http://localhost:3001/api/diyetisyen/clients", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      try {
+        const res = await fetch("/api/diyetisyen/clients", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
-      const data = await res.json();
-      setDanisanlar(data.clients);
-    } catch (err) {
-      console.error("Danışanlar alınamadı:", err);
+        let clients = [];
+        if (res.ok) {
+          const data = await res.json();
+          clients = Array.isArray(data.clients) ? data.clients : [];
+        }
+        setDanisanlar(clients);
+      } catch (err) {
+        console.error("Danışanlar alınamadı:", err);
+        setDanisanlar([]);
+      }
     }
-  };
 
-  fetchClients();
-}, []);
+    fetchClients();
+  }, []);
 
 
 
@@ -34,7 +38,7 @@ useEffect(() => {
     return (kilo / (metre * metre)).toFixed(1);
   }
 
-  const filtreliDanisanlar = danisanlar.filter((item) =>
+  const filtreliDanisanlar = (Array.isArray(danisanlar) ? danisanlar : []).filter((item) =>
     item.fullName.toLowerCase().includes(arama.toLowerCase())
   );
 

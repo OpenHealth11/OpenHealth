@@ -4,8 +4,8 @@
 
 export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Unicode harf/rakam + yaygın özel karakterler (emoji vb. hariç) */
-const LOCAL_PART = /^[\p{L}\p{N}._%+-]+$/u;
+/** ASCII harf/rakam + yaygın özel karakterler (\p{} kullanılmıyor — bazı tarayıcı/Vite ortamlarında boş sayfa riski) */
+const LOCAL_PART = /^[a-zA-Z0-9._%+-]+$/;
 const DOMAIN_LABEL = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/;
 
 /**

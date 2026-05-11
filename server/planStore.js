@@ -1,6 +1,6 @@
 import sql from "mssql";
 import { getPool } from "./db.js";
-import { getUserById } from "./userStore.js";
+import { getUserById } from "./userService.js";
 
 function normalizeText(value) {
   return typeof value === "string" ? value.trim() : "";

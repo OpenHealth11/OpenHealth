@@ -20,6 +20,14 @@ function HomePage() {
           >
             Kayıt Ol
           </button>
+          <button
+            type="button"
+            className="nav-outline-btn nav-admin-link"
+            onClick={() => navigate("/admin/diyetisyen-onay")}
+            title="Diyetisyen hesap onayı (ADMIN_API_KEY gerekir)"
+          >
+            Yönetici
+          </button>
         </nav>
       </header>
 

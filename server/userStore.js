@@ -308,3 +308,35 @@ export function createRequest(danisanId, diyetisyenId) {
 
   return yeniTalep;
 }
+
+const ADMIN_ACCOUNT_STATUSES = new Set(["approved", "rejected", "pending"]);
+
+export function listPendingDietitianAccounts() {
+  const { users } = loadDb();
+  return users
+    .filter(
+      (u) =>
+        u.role === "diyetisyen" && (u.status ?? "approved") === "pending"
+    )
+    .map((u) => ({
+      id: u.id,
+      email: u.email,
+      fullName: u.fullName,
+      status: u.status ?? "pending",
+      createdAt: u.createdAt ?? "",
+    }))
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+}
+
+export function setDietitianAccountStatus(userId, statusCode) {
+  if (!ADMIN_ACCOUNT_STATUSES.has(statusCode)) return null;
+  const db = loadDb();
+  const user = db.users.find(
+    (u) => u.role === "diyetisyen" && Number(u.id) === Number(userId)
+  );
+  if (!user) return null;
+  user.status = statusCode;
+  user.updatedAt = new Date().toISOString();
+  saveDb(db);
+  return user;
+}

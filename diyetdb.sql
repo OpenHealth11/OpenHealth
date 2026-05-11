@@ -55,7 +55,7 @@ CREATE TABLE Users (
     NormalizedEmail AS LOWER(LTRIM(RTRIM(Email))) PERSISTED,
     PasswordHash NVARCHAR(255) NOT NULL,
     Role NVARCHAR(20) NOT NULL
-        CHECK (Role IN (N'Danisan', N'Diyetisyen')),
+        CHECK (Role IN (N'Danisan', N'Danışan', N'Diyetisyen')),
     AccountStatusID INT NOT NULL,
     ResetToken NVARCHAR(128) NULL,
     ResetTokenExpiresAt DATETIME2 NULL,

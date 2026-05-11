@@ -89,6 +89,15 @@ function AuthPage({
         return;
       }
 
+      if (
+        !data.token ||
+        !data.user ||
+        typeof data.user !== "object"
+      ) {
+        setAuthError("Sunucu yanıtı eksik (oturum bilgisi alınamadı).");
+        return;
+      }
+
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
       onAuthSuccess?.(data);
@@ -158,9 +167,17 @@ function AuthPage({
       }
 
       if (data.token) {
-        localStorage.setItem("token", data.token);
-        localStorage.setItem("user", JSON.stringify(data.user));
-        onAuthSuccess?.(data);
+        if (!data.user || typeof data.user !== "object") {
+          setAuthError("Sunucu yanıtı eksik (kullanıcı bilgisi alınamadı).");
+          return;
+        }
+        setRegisterNotice(
+          "Kayıt başarılı. Aşağıdan giriş bilgilerinle oturum açabilirsin."
+        );
+        switchMode("login");
+        setPassword("");
+        setPasswordConfirm("");
+        setFullName("");
       } else {
         setRegisterNotice(
           typeof data.message === "string"

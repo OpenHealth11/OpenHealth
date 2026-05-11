@@ -68,7 +68,12 @@ const getFoodVisual = (foodName) => {
 // --- MANTIK SONU ---
 
 
-function GunlukTakipPage({ kayitlar, addGunlukKayit, deleteGunlukKayit }) {
+function GunlukTakipPage({
+  kayitlar = [],
+  addGunlukKayit,
+  deleteGunlukKayit,
+}) {
+  const liste = Array.isArray(kayitlar) ? kayitlar : [];
   const [form, setForm] = useState({ besin: "", kalori: "" });
 
   const handleSubmit = (e) => {
@@ -78,7 +83,10 @@ function GunlukTakipPage({ kayitlar, addGunlukKayit, deleteGunlukKayit }) {
     setForm({ besin: "", kalori: "" });
   };
 
-  const toplamKalori = kayitlar.reduce((sum, item) => sum + item.kalori, 0);
+  const toplamKalori = liste.reduce(
+    (sum, item) => sum + Number(item.kalori ?? 0),
+    0
+  );
 
   return (
     <div className="page" style={{ animation: "fadeIn 0.5s ease-in-out" }}>
@@ -167,13 +175,13 @@ function GunlukTakipPage({ kayitlar, addGunlukKayit, deleteGunlukKayit }) {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-          {kayitlar.length === 0 ? (
+          {liste.length === 0 ? (
             <p style={{ color: "#94a3b8", textAlign: "center", padding: "30px 0", fontWeight: "500" }}>
               Bugün henüz bir kayıt eklemedin. Hadi başlayalım! 🥗
             </p>
           ) : (
             // Kayıtları ters sırada (en son eklenen en üstte) göster
-            [...kayitlar].reverse().map((item) => (
+            [...liste].reverse().map((item) => (
               <div 
                 key={item.id} 
                 style={{ 

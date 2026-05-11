@@ -1,7 +1,7 @@
 import React from "react";
 import { FiClock, FiCoffee, FiSun, FiMoon, FiCheckCircle } from "react-icons/fi";
 
-function PlanPage({ meals }) {
+function PlanPage({ meals = [] }) {
   // Öğüne göre ikon ve renk belirleyen küçük bir yardımcı fonksiyon
   const getMealStyle = (ogunAdi) => {
     const name = ogunAdi.toLowerCase();
@@ -22,7 +22,7 @@ function PlanPage({ meals }) {
         gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", 
         gap: "25px" 
       }}>
-        {meals.map((meal) => {
+        {(Array.isArray(meals) ? meals : []).map((meal) => {
           const style = getMealStyle(meal.ogun);
 
           return (

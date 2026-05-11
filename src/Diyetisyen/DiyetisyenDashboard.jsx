@@ -5,36 +5,43 @@ function DiyetisyenDashboard() {
   const [gunlukKayitlar, setGunlukKayitlar] = useState([]);
 
   useEffect(() => {
-  const fetchData = async () => {
-    try {
+    async function fetchData() {
       const token = localStorage.getItem("token");
+      if (!token) return;
 
-      const res = await fetch("http://localhost:3001/api/diyetisyen/clients", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      try {
+        const res = await fetch("/api/diyetisyen/clients", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
-      const data = await res.json();
-      setDanisanlar(data.clients);
-    } catch (err) {
-      console.error("Dashboard veri hatası:", err);
+        let clients = [];
+        if (res.ok) {
+          const data = await res.json();
+          clients = Array.isArray(data.clients) ? data.clients : [];
+        }
+        setDanisanlar(clients);
+      } catch (err) {
+        console.error("Dashboard veri hatası:", err);
+        setDanisanlar([]);
+      }
     }
-  };
 
-  fetchData();
-}, []);
+    fetchData();
+  }, []);
 
-  const toplamDanisan = danisanlar.length;
-  const aktifDanisan = danisanlar.filter((d) => d.durum === "Aktif").length;
-  const pasifDanisan = danisanlar.filter((d) => d.durum === "Pasif").length;
-  const aktifPlan = planlar.filter((p) => p.durum === "Aktif").length;
+  const liste = Array.isArray(danisanlar) ? danisanlar : [];
+  const plans = Array.isArray(planlar) ? planlar : [];
 
-  const takipGerekenler = danisanlar.filter(
+  const toplamDanisan = liste.length;
+  const aktifDanisan = liste.filter((d) => d.durum === "Aktif").length;
+  const pasifDanisan = liste.filter((d) => d.durum === "Pasif").length;
+  const aktifPlan = plans.filter((p) => p.durum === "Aktif").length;
+
+  const takipGerekenler = liste.filter(
     (d) => d.durum === "Pasif" || Math.abs(Number(d.kilo) - Number(d.hedef)) >= 8
   );
 
-  const hedefeYakinlar = danisanlar.filter(
+  const hedefeYakinlar = liste.filter(
     (d) => Math.abs(Number(d.kilo) - Number(d.hedef)) <= 5
   );
 
@@ -128,7 +135,7 @@ function DiyetisyenDashboard() {
         <h3>Danışan Kartları</h3>
 
         <div className="dy-client-card-grid">
-          {danisanlar.map((d) => {
+          {liste.map((d) => {
             const fark = Math.abs(Number(d.kilo) - Number(d.hedef));
 
             return (

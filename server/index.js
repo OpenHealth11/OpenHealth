@@ -19,9 +19,11 @@ import {
   getUserMeasurements,
   addUserMeasurement,
   listApprovedDanisanlar,
+  listPendingDietitianAccounts,
+  setDietitianAccountStatus,
   getClientsByDiyetisyenId,
   getRequestsByDiyetisyenId,
-} from "./userStore.js";
+} from "./userService.js";
 import {
   listPlansByDietitian,
   getPlanByDietitian,
@@ -91,6 +93,34 @@ async function getUserFromAuthHeader(req) {
   } catch {
     return null;
   }
+}
+
+function adminKeyMatches(req) {
+  const configured = process.env.ADMIN_API_KEY?.trim();
+  if (!configured) return false;
+  const sent = req.headers["x-admin-key"];
+  if (typeof sent !== "string") return false;
+  try {
+    const a = Buffer.from(sent, "utf8");
+    const b = Buffer.from(configured, "utf8");
+    if (a.length !== b.length) return false;
+    return crypto.timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
+}
+
+function requireAdmin(req, res, next) {
+  if (!process.env.ADMIN_API_KEY?.trim()) {
+    return res.status(503).json({
+      error:
+        "Yönetim API kapalı: .env içinde ADMIN_API_KEY tanımlayın (uzun rastgele bir metin).",
+    });
+  }
+  if (!adminKeyMatches(req)) {
+    return res.status(401).json({ error: "Geçersiz veya eksik X-Admin-Key başlığı." });
+  }
+  next();
 }
 
 async function requireDiyetisyen(req, res) {
@@ -317,7 +347,7 @@ app.post("/api/auth/reset-password", async (req, res) => {
   }
 });
 
-app.post("/api/requests", (req, res) => {
+app.post("/api/requests", async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
 
@@ -345,10 +375,16 @@ const decoded = jwt.verify(token, JWT_SECRET);
       });
     }
 
-    const request = createRequest(
-      decoded.sub,
+    const request = await createRequest(
+      Number(decoded.sub),
       Number(diyetisyenId)
     );
+
+    if (!request) {
+      return res.status(400).json({
+        error: "Talep oluşturulamadı (diyetisyen veya danışan bulunamadı).",
+      });
+    }
 
     return res.status(201).json({
       message: "Talep gönderildi.",
@@ -547,6 +583,49 @@ app.post("/api/diyetisyen/requests/:id/reject", async (req, res) => {
   return res.json({ message: "Talep reddedildi." });
 });
 
+app.get("/api/admin/pending-dietitians", requireAdmin, async (req, res) => {
+  try {
+    const users = await listPendingDietitianAccounts();
+    return res.json({ users });
+  } catch (e) {
+    console.error("[admin-pending-dietitians]", e);
+    return res.status(500).json({ error: "Sunucu hatası." });
+  }
+});
+
+app.patch("/api/admin/users/:userId/account-status", requireAdmin, async (req, res) => {
+  try {
+    const status = req.body?.status;
+    if (status !== "approved" && status !== "rejected") {
+      return res
+        .status(400)
+        .json({ error: "body.status: approved veya rejected olmalı." });
+    }
+
+    const updated = await setDietitianAccountStatus(
+      Number(req.params.userId),
+      status
+    );
+    if (!updated) {
+      return res.status(404).json({
+        error:
+          "Diyetisyen bulunamadı veya güncellenemedi (geçerli UserID mi?).",
+      });
+    }
+
+    return res.json({
+      message:
+        status === "approved"
+          ? "Hesap onaylandı; kullanıcı giriş yapabilir."
+          : "Hesap reddedildi.",
+      user: publicUser(updated),
+    });
+  } catch (e) {
+    console.error("[admin-account-status]", e);
+    return res.status(500).json({ error: "Sunucu hatası." });
+  }
+});
+
 app.get("/api/measurements", async (req, res) => {
   const user = await getUserFromAuthHeader(req);
   if (!user) {
@@ -603,7 +682,7 @@ app.get("/api/diyetisyen/danisanlar", async (req, res) => {
   return res.json({ danisanlar: await listApprovedDanisanlar() });
 });
 
-/*  app.get("/api/diyetisyen/plans", async (req, res) => {
+app.get("/api/diyetisyen/plans", async (req, res) => {
   const u = await requireDiyetisyen(req, res);
   if (!u) return;
   return res.json({ plans: await listPlansByDietitian(u.id) });
@@ -705,7 +784,7 @@ app.patch("/api/diyetisyen/plans/:id/ogunler/:planOgunId", async (req, res) => {
     console.error("[plan-ogun-patch]", e);
     return res.status(500).json({ error: "Sunucu hatası." });
   }
-}); */
+});
 
 app.delete("/api/diyetisyen/plans/:id/ogunler/:planOgunId", async (req, res) => {
   try {
