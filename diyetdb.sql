@@ -268,6 +268,26 @@ ON SuTuketimi(ClientID, Tarih DESC);
 
 GO
 
+CREATE TABLE AktiviteTakibi (
+    AktiviteID INT IDENTITY(1,1) PRIMARY KEY,
+    ClientID INT NOT NULL,
+    AktiviteAdi NVARCHAR(100) NOT NULL,
+    SureDakika INT NOT NULL,
+    Kalori INT NULL,
+    Tarih DATE NOT NULL DEFAULT CAST(GETDATE() AS DATE),
+
+    CONSTRAINT FK_AktiviteTakibi_Clients
+        FOREIGN KEY (ClientID)
+        REFERENCES Clients(ClientID)
+        ON DELETE CASCADE
+);
+GO
+
+CREATE INDEX IX_AktiviteTakibi_ClientID_Tarih
+ON AktiviteTakibi(ClientID, Tarih DESC);
+
+GO
+
 SELECT TOP 20 * FROM Clients;
 SELECT TOP 20 * FROM Dietitians;
 SELECT TOP 20 * FROM Users;
