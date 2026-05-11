@@ -1,12 +1,14 @@
 import crypto from "crypto";
-import fs from "fs";
-import path from "path";
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { validateEmail, validateProfileMetrics, clampNvarcharMax4000 } from "../validation.js";
+import {
+  validateEmail,
+  validateProfileMetrics,
+  clampNvarcharMax4000,
+} from "../validation.js";
 import {
   approveRequest,
   rejectRequest,
@@ -19,7 +21,6 @@ import {
   updateUserPassword,
   updateUserProfile,
   updateUserHealthInfo,
-  updateClientKanRaporu,
   getUserMeasurements,
   addUserMeasurement,
   listApprovedDietitians,
@@ -27,6 +28,12 @@ import {
   setDietitianAccountStatus,
   getClientsByDiyetisyenId,
   getRequestsByDiyetisyenId,
+  listDailyTrackingForClientUser,
+  insertDailyMealForClientUser,
+  deleteDailyMealForClientUser,
+  listDailyTrackingForDietitianUser,
+  getWeeklyReportSummaryForClientUser,
+  resolveDailyTrackingKind,
 } from "./userService.js";
 import {
   listPlansByDietitian,
@@ -39,12 +46,6 @@ import {
   deletePlanOgun,
   deletePlanByDietitian,
 } from "./planStore.js";
-import {
-  ensureUploadDirs,
-  buildKanStorageRelativePath,
-  resolveKanAbsolute,
-  unlinkQuiet,
-} from "./kanUpload.js";
 
 if (!process.env.JWT_SECRET) {
   throw new Error("JWT_SECRET missing");
@@ -57,11 +58,23 @@ const SALT_ROUNDS = 10;
 
 const app = express();
 app.use(cors({ origin: true, credentials: true }));
-app.use(express.json({ limit: "10mb" }));
 
-ensureUploadDirs();
+app.use(express.json({ limit: "50mb" }));
 
 const ROLES = new Set(["danisan", "diyetisyen"]);
+
+function jwtPayloadForUser(user) {
+  const payload = {
+    email:
+      typeof user.email === "string" ? user.email.trim().toLowerCase() : "",
+    role: user.role,
+  };
+  const idNum = Number(user?.id);
+  if (Number.isFinite(idNum) && idNum > 0) {
+    payload.sub = idNum;
+  }
+  return payload;
+}
 
 function publicUser(u) {
   return {
@@ -84,9 +97,6 @@ function publicUser(u) {
     ameliyatGecmisi: u.ameliyatGecmisi ?? "",
     sigaraAlkol: u.sigaraAlkol ?? "",
     saglikNotu: u.saglikNotu ?? "",
-    hasKanRaporu: Boolean(u.kanRaporuRelativePath),
-    kanRaporuOriginalName: u.kanRaporuOriginalName ?? "",
-    kanRaporuUploadedAt: u.kanRaporuUploadedAt ?? "",
   };
 }
 
@@ -113,7 +123,8 @@ async function getUserFromAuthHeader(req) {
       }
     }
 
-    const emailRaw = typeof decoded.email === "string" ? decoded.email.trim() : "";
+    const emailRaw =
+      typeof decoded.email === "string" ? decoded.email.trim().toLowerCase() : "";
     if (emailRaw) {
       const byEmail = await findUserByEmail(emailRaw);
       if (byEmail) return byEmail;
@@ -247,11 +258,9 @@ app.post("/api/auth/register", async (req, res) => {
       });
     }
 
-    const token = jwt.sign(
-      { sub: user.id, email: user.email, role: user.role },
-      JWT_SECRET,
-      { expiresIn: "7d" }
-    );
+    const token = jwt.sign(jwtPayloadForUser(user), JWT_SECRET, {
+      expiresIn: "7d",
+    });
 
     return res.status(201).json({ token, user: publicUser(user) });
   } catch (e) {
@@ -311,11 +320,9 @@ app.post("/api/auth/login", async (req, res) => {
       return res.status(403).json({ error: "Hesabınız aktif değil." });
     }
 
-    const token = jwt.sign(
-      { sub: user.id, email: user.email, role: user.role },
-      JWT_SECRET,
-      { expiresIn: "7d" }
-    );
+    const token = jwt.sign(jwtPayloadForUser(user), JWT_SECRET, {
+      expiresIn: "7d",
+    });
 
     return res.json({ token, user: publicUser(user) });
   } catch (e) {
@@ -519,7 +526,16 @@ app.put("/api/profile", async (req, res) => {
     }
 
     const body = req.body ?? {};
-    const { fullName, boy, kilo, hedef, alerji, hastalik, kullanilanIlaclar, ilaclar } = body;
+    const {
+      fullName,
+      boy,
+      kilo,
+      hedef,
+      alerji,
+      hastalik,
+      kullanilanIlaclar,
+      ilaclar,
+    } = body;
     const name = typeof fullName === "string" ? fullName.trim() : "";
     if (!name) {
       return res.status(400).json({ error: "Ad soyad gerekli." });
@@ -561,124 +577,105 @@ app.put("/api/profile", async (req, res) => {
   }
 });
 
-app.post("/api/profile/kan-raporu", async (req, res) => {
-  const ALLOW_KAN_MIME = {
-    "application/pdf": ".pdf",
-    "image/jpeg": ".jpg",
-    "image/png": ".png",
-  };
-
+app.get("/api/danisan/daily-tracking", async (req, res) => {
   try {
     const user = await getUserFromAuthHeader(req);
     if (!user) {
       return res.status(401).json({ error: "Yetkisiz." });
     }
     if (user.role !== "danisan") {
-      return res.status(403).json({ error: "Sadece danışanlar kan raporu yükleyebilir." });
+      return res.status(403).json({ error: "Bu işlem yalnızca danışan hesapları içindir." });
     }
-
-    const { fileBase64, mimeType, originalName } = req.body ?? {};
-    if (!fileBase64 || typeof fileBase64 !== "string") {
-      return res.status(400).json({ error: "Dosya verisi (base64) gerekli." });
-    }
-
-    const mime =
-      typeof mimeType === "string" ? mimeType.split(";")[0].trim().toLowerCase() : "";
-    const ext = ALLOW_KAN_MIME[mime];
-    if (!ext) {
-      return res.status(400).json({ error: "Yalnızca PDF veya JPG/PNG yüklenebilir." });
-    }
-
-    let buf;
-    try {
-      buf = Buffer.from(fileBase64.replace(/\s/g, ""), "base64");
-    } catch {
-      return res.status(400).json({ error: "Geçersiz dosya kodlaması." });
-    }
-
-    const MAX_BYTES = 8 * 1024 * 1024;
-    if (!buf.length || buf.length > MAX_BYTES) {
-      return res.status(400).json({ error: "Dosya çok büyük (en fazla 8 MB)." });
-    }
-
-    ensureUploadDirs();
-    const rel = buildKanStorageRelativePath(user.id, ext);
-    const abs = resolveKanAbsolute(rel);
-    if (!abs) {
-      return res.status(500).json({ error: "Kayıt yolu oluşturulamadı." });
-    }
-
-    const displayNameRaw =
-      typeof originalName === "string" && originalName.trim()
-        ? originalName.trim()
-        : `kan-raporu${ext}`;
-    const displayName = displayNameRaw.slice(0, 260);
-
-    const oldRel = user.kanRaporuRelativePath;
-    const oldAbs = oldRel ? resolveKanAbsolute(oldRel) : null;
-
-    fs.writeFileSync(abs, buf);
-
-    const updated = await updateClientKanRaporu(user.id, {
-      relativePath: rel,
-      originalName: displayName,
-    });
-
-    if (!updated) {
-      unlinkQuiet(abs);
-      return res.status(404).json({ error: "Kullanıcı bulunamadı." });
-    }
-
-    if (oldAbs && oldAbs !== abs) {
-      unlinkQuiet(oldAbs);
-    }
-
-    return res.json({
-      message: "Kan raporu kaydedildi.",
-      user: publicUser(updated),
-    });
+    const from = typeof req.query.from === "string" ? req.query.from.slice(0, 10) : undefined;
+    const to = typeof req.query.to === "string" ? req.query.to.slice(0, 10) : undefined;
+    const entries = await listDailyTrackingForClientUser(user.id, { from, to });
+    return res.json({ entries });
   } catch (e) {
-    console.error("[kan-raporu-upload]", e);
+    console.error("[danisan-daily-tracking-get]", e);
     return res.status(500).json({ error: "Sunucu hatası." });
   }
 });
 
-app.get("/api/profile/kan-raporu", async (req, res) => {
+app.get("/api/danisan/report-summary", async (req, res) => {
   try {
     const user = await getUserFromAuthHeader(req);
     if (!user) {
       return res.status(401).json({ error: "Yetkisiz." });
     }
     if (user.role !== "danisan") {
-      return res.status(403).json({ error: "Yetkisiz." });
+      return res.status(403).json({ error: "Bu işlem yalnızca danışan hesapları içindir." });
     }
-
-    const rel = user.kanRaporuRelativePath;
-    if (!rel || typeof rel !== "string") {
-      return res.status(404).json({ error: "Yüklü kan raporu yok." });
-    }
-
-    const abs = resolveKanAbsolute(rel);
-    if (!abs || !fs.existsSync(abs)) {
-      return res.status(404).json({ error: "Dosya bulunamadı." });
-    }
-
-    const orig = user.kanRaporuOriginalName || "kan-raporu.pdf";
-    const safeAscii = orig.replace(/[^\x20-\x7F]/g, "_") || "kan-raporu.pdf";
-
-    const ext = path.extname(orig).toLowerCase();
-    const ct =
-      ext === ".pdf"
-        ? "application/pdf"
-        : ext === ".png"
-          ? "image/png"
-          : "image/jpeg";
-
-    res.setHeader("Content-Type", ct);
-    res.setHeader("Content-Disposition", `attachment; filename="${safeAscii}"`);
-    fs.createReadStream(abs).pipe(res);
+    const q = Number(req.query.days);
+    const days = Number.isFinite(q) ? q : 7;
+    const summary = await getWeeklyReportSummaryForClientUser(user.id, { days });
+    return res.json(summary);
   } catch (e) {
-    console.error("[kan-raporu-download]", e);
+    console.error("[danisan-report-summary]", e);
+    return res.status(500).json({ error: "Sunucu hatası." });
+  }
+});
+
+app.post("/api/danisan/daily-tracking", async (req, res) => {
+  try {
+    const user = await getUserFromAuthHeader(req);
+    if (!user) {
+      return res.status(401).json({ error: "Yetkisiz." });
+    }
+    if (user.role !== "danisan") {
+      return res.status(403).json({ error: "Bu işlem yalnızca danışan hesapları içindir." });
+    }
+    const body = req.body ?? {};
+    const entry = await insertDailyMealForClientUser(user.id, body);
+    if (!entry) {
+      const isAct = resolveDailyTrackingKind(body) === "activity";
+      return res.status(400).json({
+        error: isAct
+          ? "Aktivite adı ve süre (dakika, pozitif sayı) gerekli."
+          : "Besin adı ve geçerli kalori gerekli.",
+      });
+    }
+    return res.status(201).json({ entry });
+  } catch (e) {
+    console.error("[danisan-daily-tracking-post]", e);
+    return res.status(500).json({ error: "Sunucu hatası." });
+  }
+});
+
+app.delete("/api/danisan/daily-tracking/:id", async (req, res) => {
+  try {
+    const user = await getUserFromAuthHeader(req);
+    if (!user) {
+      return res.status(401).json({ error: "Yetkisiz." });
+    }
+    if (user.role !== "danisan") {
+      return res.status(403).json({ error: "Bu işlem yalnızca danışan hesapları içindir." });
+    }
+    const ok = await deleteDailyMealForClientUser(user.id, req.params.id);
+    if (!ok) {
+      return res.status(404).json({ error: "Kayıt bulunamadı veya silinemez." });
+    }
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error("[danisan-daily-tracking-delete]", e);
+    return res.status(500).json({ error: "Sunucu hatası." });
+  }
+});
+
+app.get("/api/diyetisyen/daily-tracking", async (req, res) => {
+  try {
+    const user = await getUserFromAuthHeader(req);
+    if (!user) {
+      return res.status(401).json({ error: "Yetkisiz." });
+    }
+    if (user.role !== "diyetisyen") {
+      return res.status(403).json({ error: "Bu işlem yalnızca diyetisyen hesapları içindir." });
+    }
+    const from = typeof req.query.from === "string" ? req.query.from.slice(0, 10) : undefined;
+    const to = typeof req.query.to === "string" ? req.query.to.slice(0, 10) : undefined;
+    const entries = await listDailyTrackingForDietitianUser(user.id, { from, to });
+    return res.json({ entries });
+  } catch (e) {
+    console.error("[diyetisyen-daily-tracking-get]", e);
     return res.status(500).json({ error: "Sunucu hatası." });
   }
 });
@@ -778,6 +775,7 @@ app.get("/api/diyetisyen/clients", async (req, res) => {
     durum: u.durum ?? "Pasif",
     alerji: u.alerji ?? "",
     hastalik: u.hastalik ?? "",
+    ilaclar: u.kullanilanIlaclar ?? "",
   }));
 
   return res.json({ clients: safeClients });
@@ -1088,7 +1086,20 @@ app.get("/", (_req, res) => {
 </body></html>`);
 });
 
+app.use((err, req, res, next) => {
+  if (err?.status === 413 || err?.type === "entity.too.large") {
+    return res.status(413).json({ error: "İstek gövdesi çok büyük." });
+  }
+  console.error("[api]", err);
+  if (res.headersSent) {
+    next(err);
+    return;
+  }
+  res.status(500).json({ error: "Sunucu hatası." });
+});
+
 app.listen(PORT, () => {
   console.log(`OpenHealth API -> http://localhost:${PORT}/`);
   console.log(`Arayuz (Vite) -> http://localhost:5173  (ayri: npm run dev)`);
+  console.log(`[routes] GET /api/danisan/report-summary (haftalik ozet)`);
 });

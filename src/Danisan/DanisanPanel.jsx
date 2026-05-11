@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { initialDanisanData } from "./DanisanMockData";
+import { initialDanisanData, buildHaftalikRaporSnapshot } from "./DanisanMockData";
 import { mealsFromLatestPlan } from "./planDisplay";
 import "./Danisan.css";
 
@@ -14,6 +14,7 @@ import RaporPage from "./RaporPage";
 import ProfilPage from "./ProfilPage";
 import DiyetisyenlerPage from "./DiyetisyenlerPage";
 import { validateProfileMetrics } from "../../validation.js";
+import { apiUrl } from "../apiBase.js";
 
 export default function DanisanPanel() {
   const navigate = useNavigate();
@@ -24,6 +25,9 @@ export default function DanisanPanel() {
   const [nutritionPlans, setNutritionPlans] = useState([]);
   const [plansLoadState, setPlansLoadState] = useState({ loading: true, err: "" });
   const plansInitialFetchDone = useRef(false);
+  const [reportRemote, setReportRemote] = useState(null);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportFetchErr, setReportFetchErr] = useState("");
 
   useEffect(() => {
     async function fetchProfile() {
@@ -34,7 +38,7 @@ export default function DanisanPanel() {
       }
 
       try {
-        const res = await fetch("/api/profile", {
+        const res = await fetch(apiUrl("/api/profile"), {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -48,6 +52,16 @@ export default function DanisanPanel() {
         }
 
         if (!res.ok) {
+          if (res.status === 401) {
+            sessionStorage.setItem(
+              "authFlash",
+              "Oturum doğrulanamadı veya hesap bulunamadı. Tekrar giriş yapın."
+            );
+            localStorage.removeItem("token");
+            localStorage.removeItem("user");
+            navigate("/login", { replace: true });
+            return;
+          }
           setProfileError(profileData.error || "Profil bilgileri alınamadı.");
           return;
         }
@@ -64,6 +78,57 @@ export default function DanisanPanel() {
     }
 
     fetchProfile();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadGunlukKayitlari() {
+      const token = localStorage.getItem("token");
+      if (!token?.trim()) return;
+      try {
+        const res = await fetch(apiUrl("/api/danisan/daily-tracking"), {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const raw = await res.text();
+        let body = {};
+        try {
+          body = raw ? JSON.parse(raw) : {};
+        } catch {
+          body = {};
+        }
+        if (!res.ok || cancelled) return;
+        const entries = Array.isArray(body.entries) ? body.entries : [];
+        setData((prev) => ({
+          ...prev,
+          gunlukKayitlar: entries.map((e) =>
+            e.kind === "activity"
+              ? {
+                  id: e.id,
+                  kind: "activity",
+                  tarih: e.tarih,
+                  aktivite: e.aktivite,
+                  sure: e.sure,
+                  yakilanKalori: e.yakilanKalori ?? 0,
+                  not: e.not ?? "",
+                }
+              : {
+                  id: e.id,
+                  kind: "meal",
+                  tarih: e.tarih,
+                  besin: e.besin,
+                  kalori: e.kalori,
+                  ogun: e.ogun,
+                }
+          ),
+        }));
+      } catch {
+        /* ignore */
+      }
+    }
+    loadGunlukKayitlari();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -89,7 +154,7 @@ export default function DanisanPanel() {
       }
 
       try {
-        const res = await fetch("/api/danisan/plans", {
+        const res = await fetch(apiUrl("/api/danisan/plans"), {
           headers: { Authorization: `Bearer ${token}` },
         });
         const raw = await res.text();
@@ -138,6 +203,52 @@ export default function DanisanPanel() {
     };
   }, [activePage]);
 
+  useEffect(() => {
+    if (activePage !== "rapor") return;
+    const token = localStorage.getItem("token");
+    if (!token?.trim()) {
+      setReportRemote(null);
+      setReportFetchErr("");
+      setReportLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setReportRemote(null);
+    setReportFetchErr("");
+    setReportLoading(true);
+    (async () => {
+      try {
+        const res = await fetch(apiUrl("/api/danisan/report-summary?days=7"), {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const raw = await res.text();
+        let body = {};
+        try {
+          body = raw ? JSON.parse(raw) : {};
+        } catch {
+          body = {};
+        }
+        if (!res.ok) {
+          throw new Error(body.error || `HTTP ${res.status}`);
+        }
+        if (!cancelled) {
+          setReportRemote(body);
+          setReportFetchErr("");
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setReportFetchErr(e?.message || "Rapor alınamadı.");
+          setReportRemote(null);
+        }
+      } finally {
+        if (!cancelled) setReportLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activePage]);
+
   const dashboardMeals = useMemo(() => mealsFromLatestPlan(nutritionPlans), [nutritionPlans]);
 
   const addWater = () => {
@@ -154,38 +265,145 @@ export default function DanisanPanel() {
     }));
   };
 
-  const addGunlukKayit = (newItem) => {
-    if (!newItem.besin.trim() || !newItem.kalori) return;
-    setData((prev) => ({
-      ...prev,
-      gunlukKayitlar: [
-        ...prev.gunlukKayitlar,
-        {
-        id: newItem.id || Date.now(),
-        besin: newItem.besin,
+  const addGunlukKayit = async (newItem) => {
+    const token = localStorage.getItem("token");
+    if (!token?.trim()) {
+      alert("Oturum bulunamadı.");
+      return;
+    }
+
+    const tarihStr =
+      newItem.tarih || new Date().toISOString().split("T")[0];
+
+    const resolvedKind =
+      newItem.kind === "activity"
+        ? "activity"
+        : String(newItem.aktivite ?? "").trim() !== "" &&
+            String(newItem.besin ?? "").trim() === ""
+          ? "activity"
+          : "meal";
+
+    let bodyPayload;
+    if (resolvedKind === "activity") {
+      const sureNum = Number(newItem.sure);
+      if (
+        !String(newItem.aktivite ?? "").trim() ||
+        !Number.isFinite(sureNum) ||
+        sureNum <= 0
+      ) {
+        return;
+      }
+      bodyPayload = {
+        kind: "activity",
+        aktivite: String(newItem.aktivite).trim(),
+        sure: sureNum,
+        yakilanKalori: Number(newItem.yakilanKalori || 0),
+        not: typeof newItem.not === "string" ? newItem.not : "",
+        tarih: tarihStr,
+      };
+    } else {
+      if (
+        !String(newItem.besin ?? "").trim() ||
+        newItem.kalori == null ||
+        newItem.kalori === ""
+      ) {
+        return;
+      }
+      bodyPayload = {
+        besin: String(newItem.besin).trim(),
         kalori: Number(newItem.kalori),
-        ogun: newItem.ogun,
-        tarih:
-          newItem.tarih ||
-          new Date().toISOString().split("T")[0],
-      },
-      ],
-    }));
+        ogun: newItem.ogun || "Sabah",
+        tarih: tarihStr,
+      };
+    }
+
+    try {
+      const res = await fetch(apiUrl("/api/danisan/daily-tracking"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(bodyPayload),
+      });
+      const raw = await res.text();
+      let body = {};
+      try {
+        body = raw ? JSON.parse(raw) : {};
+      } catch {
+        body = {};
+      }
+      if (!res.ok) {
+        alert(body.error || "Günlük kayıt eklenemedi.");
+        return;
+      }
+      const entry = body.entry;
+      if (!entry) return;
+      setData((prev) => ({
+        ...prev,
+        gunlukKayitlar: [
+          ...prev.gunlukKayitlar,
+          entry.kind === "activity"
+            ? {
+                id: entry.id,
+                kind: "activity",
+                tarih: entry.tarih,
+                aktivite: entry.aktivite,
+                sure: entry.sure,
+                yakilanKalori: entry.yakilanKalori ?? 0,
+                not: entry.not ?? "",
+              }
+            : {
+                id: entry.id,
+                kind: "meal",
+                tarih: entry.tarih,
+                besin: entry.besin,
+                kalori: entry.kalori,
+                ogun: entry.ogun,
+              },
+        ],
+      }));
+    } catch {
+      alert("Sunucuya bağlanılamadı.");
+    }
   };
 
-  const deleteGunlukKayit = (id) => {
-    setData((prev) => ({
-      ...prev,
-      gunlukKayitlar: prev.gunlukKayitlar.filter((item) => item.id !== id),
-    }));
+  const deleteGunlukKayit = async (id) => {
+    const token = localStorage.getItem("token");
+    if (!token?.trim()) return;
+    try {
+      const res = await fetch(
+        apiUrl(`/api/danisan/daily-tracking/${encodeURIComponent(id)}`),
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      const raw = await res.text();
+      let body = {};
+      try {
+        body = raw ? JSON.parse(raw) : {};
+      } catch {
+        body = {};
+      }
+      if (!res.ok) {
+        alert(body.error || "Kayıt silinemedi.");
+        return;
+      }
+      setData((prev) => ({
+        ...prev,
+        gunlukKayitlar: prev.gunlukKayitlar.filter((item) => item.id !== id),
+      }));
+    } catch {
+      alert("Sunucuya bağlanılamadı.");
+    }
   };
 
   /**
    * @param {object} payload Profil alanları (JSON ile gider)
-   * @param {File | null} kanFile Opsiyonel kan raporu — ayrı endpoint ile yüklenir
    * @returns {Promise<{ ok: boolean, error?: string, user?: object }>}
    */
-  const updateProfile = async (payload, kanFile = null) => {
+  const updateProfile = async (payload) => {
     const token = localStorage.getItem("token");
     if (!token?.trim()) {
       alert("Oturum bulunamadı.");
@@ -218,7 +436,7 @@ export default function DanisanPanel() {
     };
 
     try {
-      const res = await fetch("/api/profile", {
+      const res = await fetch(apiUrl("/api/profile"), {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -241,63 +459,11 @@ export default function DanisanPanel() {
         return { ok: false, error: result.error || "Profil güncellenemedi." };
       }
 
-      let mergedUser = result.user;
-
-      if (kanFile instanceof File) {
-        const base64 = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            const s = String(reader.result || "");
-            const i = s.indexOf(",");
-            resolve(i >= 0 ? s.slice(i + 1) : s);
-          };
-          reader.onerror = reject;
-          reader.readAsDataURL(kanFile);
-        });
-
-        const kres = await fetch("/api/profile/kan-raporu", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            fileBase64: base64,
-            mimeType: kanFile.type || "application/pdf",
-            originalName: kanFile.name,
-          }),
-        });
-
-        const krb = await kres.text();
-        let kj = {};
-        try {
-          kj = krb ? JSON.parse(krb) : {};
-        } catch {
-          alert("Profil kaydedildi; kan raporu yanıtı okunamadı.");
-          setData((prev) => ({ ...prev, user: mergedUser }));
-          localStorage.setItem("user", JSON.stringify(mergedUser));
-          return { ok: false, error: "Kan raporu yanıtı okunamadı." };
-        }
-
-        if (!kres.ok) {
-          alert(
-            `Profil kaydedildi; kan raporu yüklenemedi: ${kj.error || kres.status}`
-          );
-          setData((prev) => ({ ...prev, user: mergedUser }));
-          localStorage.setItem("user", JSON.stringify(mergedUser));
-          return { ok: false, error: kj.error, user: mergedUser };
-        }
-
-        mergedUser = kj.user || mergedUser;
-      }
+      const mergedUser = result.user;
 
       setData((prev) => ({ ...prev, user: mergedUser }));
       localStorage.setItem("user", JSON.stringify(mergedUser));
-      alert(
-        kanFile instanceof File
-          ? "Profil ve kan raporu güncellendi."
-          : result.message || "Profil bilgileri güncellendi."
-      );
+      alert(result.message || "Profil bilgileri güncellendi.");
       return { ok: true, user: mergedUser };
     } catch {
       alert("Sunucuya bağlanılamadı.");
@@ -313,10 +479,68 @@ export default function DanisanPanel() {
         return (
           <PlanPage plans={nutritionPlans} loading={plansLoadState.loading} error={plansLoadState.err} />
         );
-      case "gunluk": return <GunlukTakipPage kayitlar={data.gunlukKayitlar} addGunlukKayit={addGunlukKayit} deleteGunlukKayit={deleteGunlukKayit} />;
+      case "gunluk":
+        return (
+          <GunlukTakipPage
+            kayitlar={data.gunlukKayitlar}
+            addGunlukKayit={addGunlukKayit}
+            deleteGunlukKayit={deleteGunlukKayit}
+          />
+        );
       case "su": return <SuTakipPage water={data.water} addWater={addWater} removeWater={removeWater} />;
       case "takas": return <BesinTakasiPage takasOnerileri={data.takasOnerileri} />;
-      case "rapor": return <RaporPage rapor={data.haftalikRapor} />;
+      case "rapor": {
+        const fallback = buildHaftalikRaporSnapshot(data);
+        const suFallback = Number(data.water?.icilen) || fallback.suOrtalama;
+        if (reportLoading) {
+          return (
+            <div className="page">
+              <p style={{ color: "#64748b" }}>Rapor yükleniyor…</p>
+            </div>
+          );
+        }
+        const remote = reportRemote;
+        const merged =
+          remote != null
+            ? {
+                ortalamaKalori: remote.ortalamaKalori ?? fallback.ortalamaKalori,
+                suOrtalama:
+                  remote.suOrtalama != null && Number.isFinite(Number(remote.suOrtalama))
+                    ? Number(remote.suOrtalama)
+                    : suFallback,
+                kiloDegisim: remote.kiloDegisim ?? fallback.kiloDegisim,
+                uyumOrani: remote.uyumOrani ?? fallback.uyumOrani,
+                periodFrom: remote.periodFrom,
+                periodTo: remote.periodTo,
+                days: remote.days ?? 7,
+              }
+            : {
+                ...fallback,
+                suOrtalama: suFallback,
+                periodFrom: undefined,
+                periodTo: undefined,
+                days: 7,
+              };
+        return (
+          <>
+            {reportFetchErr ? (
+              <div
+                style={{
+                  marginBottom: "16px",
+                  padding: "12px 16px",
+                  background: "#fffbeb",
+                  borderRadius: "12px",
+                  color: "#92400e",
+                  fontSize: "14px",
+                }}
+              >
+                Sunucu özeti alınamadı; yerel özet gösteriliyor. ({reportFetchErr})
+              </div>
+            ) : null}
+            <RaporPage rapor={merged} />
+          </>
+        );
+      }
       case "profil": return <ProfilPage user={data.user} updateProfile={updateProfile} />;
       case "diyetisyenler": return <DiyetisyenlerPage />;
       default: return <Dashboard data={{ ...data, meals: dashboardMeals }} />;

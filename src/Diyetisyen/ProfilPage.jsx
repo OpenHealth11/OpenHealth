@@ -3,7 +3,6 @@ import {
   FiAward,
   FiBriefcase,
   FiBookOpen,
-  FiStar,
   FiSave,
   FiUpload,
 } from "react-icons/fi";
@@ -74,16 +73,6 @@ function ProfilPage({ profile, onProfileChange, onSaveProfile }) {
                   <strong>{profile.okul}</strong>
                 </div>
               </div>
-
-              <div className="dy-summary-item">
-                <div className="dy-summary-icon">
-                  <FiStar />
-                </div>
-                <div>
-                  <span>Puan</span>
-                  <strong>{profile.puan}</strong>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -133,16 +122,6 @@ function ProfilPage({ profile, onProfileChange, onSaveProfile }) {
                 type="number"
                 name="danisan"
                 value={profile.danisan || ""}
-                onChange={onProfileChange}
-              />
-            </div>
-
-            <div className="dy-form-group">
-              <label>PUAN</label>
-              <input
-                type="text"
-                name="puan"
-                value={profile.puan || ""}
                 onChange={onProfileChange}
               />
             </div>

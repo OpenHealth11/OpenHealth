@@ -11,7 +11,7 @@ import {
   FiCalendar,
 } from "react-icons/fi";
 
-function DiyetisyenDashboard() {
+function DiyetisyenDashboard({ onProfilGor }) {
   const [danisanlar, setDanisanlar] = useState([]);
   const [planlar, setPlanlar] = useState([]);
   const [gunlukKayitlar, setGunlukKayitlar] = useState([]);
@@ -199,7 +199,7 @@ function DiyetisyenDashboard() {
 
                   <div>
                     <h4>{d.fullName}</h4>
-                    <p>{d.yas} yaş</p>
+                    <p>{d.yas != null && String(d.yas).trim() !== "" ? `${d.yas} yaş` : "—"}</p>
                   </div>
                 </div>
 
@@ -246,7 +246,11 @@ function DiyetisyenDashboard() {
                   </div>
                 </div>
 
-                <button type="button" className="dy-client-btn">
+                <button
+                  type="button"
+                  className="dy-client-btn"
+                  onClick={() => onProfilGor?.(d)}
+                >
                   Profili Gör
                 </button>
               </div>

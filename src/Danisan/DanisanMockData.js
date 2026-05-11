@@ -313,6 +313,53 @@ export const initialDanisanData = {
     neden: "Kuruyemiş ve meyve daha dengeli bir ara öğün alternatifi sunar.",
     etiketler: ["Dengeli", "Tok tutar"],
   },
-  ]
+  ],
 
 };
+
+/** Raporlar sayfası — günlük kayıt / su / profil kilosu ile özet (duruma göre güncellenir). */
+export function buildHaftalikRaporSnapshot(data) {
+  const fallback = {
+    ortalamaKalori: 1850,
+    suOrtalama: 6,
+    kiloDegisim: "—",
+    uyumOrani: 72,
+  };
+  if (!data) return fallback;
+
+  const entries = Array.isArray(data.gunlukKayitlar) ? data.gunlukKayitlar : [];
+  const meals = entries.filter((e) => e.kind !== "activity");
+  const water = data.water || {};
+
+  let ortalamaKalori = fallback.ortalamaKalori;
+  if (meals.length > 0) {
+    const sum = meals.reduce((acc, e) => acc + (Number(e.kalori) || 0), 0);
+    ortalamaKalori = Math.round(sum / meals.length);
+  }
+
+  const suRaw = water.icilen;
+  const suOrtalama =
+    typeof suRaw === "number" && Number.isFinite(suRaw) && suRaw >= 0
+      ? Math.round(suRaw)
+      : fallback.suOrtalama;
+
+  const uyumOrani =
+    meals.length > 0
+      ? Math.min(100, Math.round((meals.length / 21) * 100))
+      : fallback.uyumOrani;
+
+  let kiloDegisim = fallback.kiloDegisim;
+  const kilo = data.user?.kilo;
+  const hedef = data.user?.hedef;
+  if (kilo !== "" && kilo != null && hedef !== "" && hedef != null) {
+    const k = Number(kilo);
+    const h = Number(hedef);
+    if (Number.isFinite(k) && Number.isFinite(h)) {
+      const diff = k - h;
+      const sign = diff > 0 ? "+" : "";
+      kiloDegisim = `${sign}${diff.toFixed(1)} kg (hedefe göre)`;
+    }
+  }
+
+  return { ortalamaKalori, suOrtalama, kiloDegisim, uyumOrani };
+}

@@ -1,5 +1,7 @@
 import sql from "mssql";
+import { resolveDailyTrackingKind } from "./dailyTrackingKind.js";
 import { getPool } from "./db.js";
+import { buildWeeklyReportSummary } from "./reportSummary.js";
 
 // diyetdb.sql CHECK: Role IN (N'Danisan', N'Diyetisyen') — ş ile Danışan yazılamaz.
 const ROLE_API_TO_DB = {
@@ -25,10 +27,9 @@ SELECT u.UserID, u.FullName, u.Email, u.PasswordHash, u.Role, u.CreatedAt,
        u.ResetToken, u.ResetTokenExpiresAt,
        s.StatusCode,
        dt.UserID AS DietitianUserID,
-       c.Yas, c.Boy, c.Kilo, c.Hedef, c.SonGorusme, c.Durum, c.Alerji, c.Hastalik,
+       c.Boy, c.Kilo, c.Hedef, c.SonGorusme, c.Durum, c.Alerji, c.Hastalik,
        c.KanGrubu, c.DogumTarihi, c.Cinsiyet, c.AktiviteSeviyesi, c.KronikRahatsizlik,
-       c.KullanilanIlaclar, c.AmeliyatGecmisi, c.SigaraAlkol, c.SaglikNotu,
-       c.KanRaporuRelativePath, c.KanRaporuOriginalName, c.KanRaporuUploadedAt
+       c.KullanilanIlaclar, c.AmeliyatGecmisi, c.SigaraAlkol, c.SaglikNotu
 `;
 
 function fmtNum(v) {
@@ -59,7 +60,6 @@ export function mapFullUser(row) {
         : row.ResetTokenExpiresAt ?? undefined,
     createdAt:
       row.CreatedAt instanceof Date ? row.CreatedAt.toISOString() : row.CreatedAt,
-    yas: row.Yas ?? "",
     boy: fmtNum(row.Boy),
     kilo: fmtNum(row.Kilo),
     hedef: fmtNum(row.Hedef),
@@ -77,12 +77,6 @@ export function mapFullUser(row) {
     ameliyatGecmisi: row.AmeliyatGecmisi ?? "",
     sigaraAlkol: row.SigaraAlkol ?? "",
     saglikNotu: row.SaglikNotu ?? "",
-    kanRaporuRelativePath: row.KanRaporuRelativePath ?? "",
-    kanRaporuOriginalName: row.KanRaporuOriginalName ?? "",
-    kanRaporuUploadedAt:
-      row.KanRaporuUploadedAt instanceof Date
-        ? row.KanRaporuUploadedAt.toISOString()
-        : row.KanRaporuUploadedAt ?? "",
     measurements: [],
   };
 }
@@ -362,25 +356,6 @@ export async function updateUserHealthInfo(userId, healthData) {
   return getUserById(id);
 }
 
-export async function updateClientKanRaporu(userId, { relativePath, originalName }) {
-  const pool = await getPool();
-  const id = Number(userId);
-  await pool
-    .request()
-    .input("id", sql.Int, id)
-    .input("rel", sql.NVarChar(500), relativePath)
-    .input("orig", sql.NVarChar(260), String(originalName ?? "").slice(0, 260))
-    .query(`
-      UPDATE Clients SET
-        KanRaporuRelativePath = @rel,
-        KanRaporuOriginalName = @orig,
-        KanRaporuUploadedAt = SYSUTCDATETIME(),
-        UpdatedAt = SYSUTCDATETIME()
-      WHERE UserID = @id
-    `);
-  return getUserById(id);
-}
-
 function mapMeasurementRow(r) {
   return {
     id: r.MeasurementID,
@@ -450,8 +425,9 @@ export async function getClientsByDiyetisyenId(diyetisyenUserId) {
     .request()
     .input("did", sql.Int, did)
     .query(`
-      SELECT u.UserID AS id, u.FullName AS fullName, c.Yas AS yas, c.Boy AS boy, c.Kilo AS kilo, c.Hedef AS hedef,
-             c.SonGorusme AS sonGorusme, c.Durum AS durum, c.Alerji AS alerji, c.Hastalik AS hastalik
+      SELECT u.UserID AS id, u.FullName AS fullName, c.Boy AS boy, c.Kilo AS kilo, c.Hedef AS hedef,
+             c.SonGorusme AS sonGorusme, c.Durum AS durum, c.Alerji AS alerji, c.Hastalik AS hastalik,
+             c.KullanilanIlaclar AS kullanilanIlaclar
       FROM Clients c
       INNER JOIN Users u ON u.UserID = c.UserID
       WHERE c.DietitianID = @did
@@ -460,7 +436,6 @@ export async function getClientsByDiyetisyenId(diyetisyenUserId) {
   return result.recordset.map((r) => ({
     id: r.id,
     fullName: r.fullName,
-    yas: r.yas ?? "",
     boy: fmtNum(r.boy),
     kilo: fmtNum(r.kilo),
     hedef: fmtNum(r.hedef),
@@ -468,6 +443,7 @@ export async function getClientsByDiyetisyenId(diyetisyenUserId) {
     durum: r.durum ?? "Pasif",
     alerji: r.alerji ?? "",
     hastalik: r.hastalik ?? "",
+    kullanilanIlaclar: r.kullanilanIlaclar ?? "",
   }));
 }
 
@@ -574,5 +550,290 @@ export async function createRequest(danisanUserId, diyetisyenUserId) {
     talep: "Diyetisyen atanma isteği",
     tarih: fmtDate(out.Tarih),
     durum: "pending",
+  };
+}
+
+/** Notes kolonunda JSON: öğün (meal) veya fiziksel aktivite (activity). */
+function encodeDailyTrackingNotes(payload) {
+  if (payload.kind === "activity") {
+    return JSON.stringify({
+      v: 1,
+      kind: "activity",
+      aktivite: String(payload.aktivite ?? "").slice(0, 200),
+      sure: Math.max(0, Number(payload.sure) || 0),
+      yakilanKalori: Math.max(0, Number(payload.yakilanKalori) || 0),
+      not: String(payload.not ?? "").slice(0, 500),
+    });
+  }
+  return JSON.stringify({
+    v: 1,
+    kind: "meal",
+    besin: String(payload.besin ?? "").slice(0, 500),
+    kalori: Number(payload.kalori) || 0,
+    ogun: String(payload.ogun ?? "").slice(0, 80),
+  });
+}
+
+/** @returns {{ kind:'meal', besin, kalori, ogun } | { kind:'activity', aktivite, sure, yakilanKalori, not }} */
+function decodeDailyTrackingNotes(raw) {
+  if (!raw || typeof raw !== "string") {
+    return { kind: "meal", besin: "", kalori: 0, ogun: "-" };
+  }
+  try {
+    const j = JSON.parse(raw);
+    if (j && typeof j === "object") {
+      if (j.kind === "activity") {
+        return {
+          kind: "activity",
+          aktivite: typeof j.aktivite === "string" ? j.aktivite : "",
+          sure: Math.max(0, Number(j.sure) || 0),
+          yakilanKalori: Math.max(0, Number(j.yakilanKalori) || 0),
+          not: typeof j.not === "string" ? j.not : "",
+        };
+      }
+      return {
+        kind: "meal",
+        besin: typeof j.besin === "string" ? j.besin : "",
+        kalori: Number(j.kalori) || 0,
+        ogun: typeof j.ogun === "string" ? j.ogun : "-",
+      };
+    }
+  } catch {
+    /* eski düz metin */
+  }
+  return { kind: "meal", besin: raw.slice(0, 500), kalori: 0, ogun: "-" };
+}
+
+/** @param {{ from?: string, to?: string }} [range] YYYY-MM-DD */
+export async function listDailyTrackingForClientUser(clientUserId, range = {}) {
+  const pool = await getPool();
+  const uid = Number(clientUserId);
+  const req = pool.request().input("uid", sql.Int, uid);
+  let dateClause = "";
+  if (range.from && typeof range.from === "string") {
+    req.input("from", sql.Date, new Date(`${range.from}T12:00:00`));
+    dateClause += " AND dt.RecordDate >= @from";
+  }
+  if (range.to && typeof range.to === "string") {
+    req.input("to", sql.Date, new Date(`${range.to}T12:00:00`));
+    dateClause += " AND dt.RecordDate <= @to";
+  }
+  const result = await req.query(`
+    SELECT dt.TrackingID, dt.RecordDate, dt.Notes
+    FROM DailyTracking dt
+    INNER JOIN Clients c ON c.ClientID = dt.ClientID AND c.UserID = @uid
+    WHERE 1=1 ${dateClause}
+    ORDER BY dt.RecordDate DESC, dt.TrackingID DESC
+  `);
+  return result.recordset.map((row) => {
+    const dec = decodeDailyTrackingNotes(row.Notes);
+    if (dec.kind === "activity") {
+      return {
+        id: row.TrackingID,
+        tarih: fmtDate(row.RecordDate),
+        kind: "activity",
+        aktivite: dec.aktivite,
+        sure: dec.sure,
+        yakilanKalori: dec.yakilanKalori,
+        not: dec.not,
+      };
+    }
+    return {
+      id: row.TrackingID,
+      tarih: fmtDate(row.RecordDate),
+      kind: "meal",
+      besin: dec.besin,
+      kalori: dec.kalori,
+      ogun: dec.ogun,
+    };
+  });
+}
+
+export async function insertDailyMealForClientUser(clientUserId, payload) {
+  const pool = await getPool();
+  const uid = Number(clientUserId);
+  const cidRes = await pool
+    .request()
+    .input("uid", sql.Int, uid)
+    .query(`SELECT ClientID FROM Clients WHERE UserID = @uid`);
+  const clientId = cidRes.recordset[0]?.ClientID;
+  if (clientId == null) return null;
+
+  const tarihRaw =
+    typeof payload.tarih === "string" && payload.tarih.trim()
+      ? payload.tarih.trim().slice(0, 10)
+      : fmtDate(new Date());
+  const recordDate = new Date(`${tarihRaw}T12:00:00`);
+
+  const isActivity = resolveDailyTrackingKind(payload) === "activity";
+  let notes;
+  if (isActivity) {
+    const aktivite = String(payload.aktivite ?? "").trim();
+    const sure = Number(payload.sure);
+    if (!aktivite || !Number.isFinite(sure) || sure <= 0) {
+      return null;
+    }
+    notes = encodeDailyTrackingNotes({
+      kind: "activity",
+      aktivite,
+      sure,
+      yakilanKalori: payload.yakilanKalori,
+      not: payload.not,
+    });
+  } else {
+    const besin = String(payload.besin ?? "").trim();
+    const ogun = String(payload.ogun ?? "").trim() || "Öğün";
+    const kalori = Number(payload.kalori);
+    if (!besin || !Number.isFinite(kalori) || kalori < 0) {
+      return null;
+    }
+    notes = encodeDailyTrackingNotes({
+      kind: "meal",
+      besin,
+      kalori,
+      ogun,
+    });
+  }
+
+  const ins = await pool
+    .request()
+    .input("cid", sql.Int, Number(clientId))
+    .input("rd", sql.Date, recordDate)
+    .input("notes", sql.NVarChar(sql.MAX), notes)
+    .query(`
+      INSERT INTO DailyTracking (ClientID, Notes, RecordDate)
+      OUTPUT INSERTED.TrackingID, INSERTED.RecordDate, INSERTED.Notes
+      VALUES (@cid, @notes, @rd)
+    `);
+  const row = ins.recordset[0];
+  if (!row) return null;
+  const dec = decodeDailyTrackingNotes(row.Notes);
+  if (dec.kind === "activity") {
+    return {
+      id: row.TrackingID,
+      tarih: fmtDate(row.RecordDate),
+      kind: "activity",
+      aktivite: dec.aktivite,
+      sure: dec.sure,
+      yakilanKalori: dec.yakilanKalori,
+      not: dec.not,
+    };
+  }
+  return {
+    id: row.TrackingID,
+    tarih: fmtDate(row.RecordDate),
+    kind: "meal",
+    besin: dec.besin,
+    kalori: dec.kalori,
+    ogun: dec.ogun,
+  };
+}
+
+export async function deleteDailyMealForClientUser(clientUserId, trackingId) {
+  const pool = await getPool();
+  const result = await pool
+    .request()
+    .input("uid", sql.Int, Number(clientUserId))
+    .input("tid", sql.Int, Number(trackingId))
+    .query(`
+      DELETE dt
+      FROM DailyTracking dt
+      INNER JOIN Clients c ON c.ClientID = dt.ClientID AND c.UserID = @uid
+      WHERE dt.TrackingID = @tid
+    `);
+  return result.rowsAffected?.[0] > 0;
+}
+
+/** @param {{ from?: string, to?: string }} [range] */
+export async function listDailyTrackingForDietitianUser(diyetisyenUserId, range = {}) {
+  const pool = await getPool();
+  const did = Number(diyetisyenUserId);
+  const req = pool.request().input("did", sql.Int, did);
+  let dateClause = "";
+  if (range.from && typeof range.from === "string") {
+    req.input("from", sql.Date, new Date(`${range.from}T12:00:00`));
+    dateClause += " AND dt.RecordDate >= @from";
+  }
+  if (range.to && typeof range.to === "string") {
+    req.input("to", sql.Date, new Date(`${range.to}T12:00:00`));
+    dateClause += " AND dt.RecordDate <= @to";
+  }
+  const result = await req.query(`
+    SELECT dt.TrackingID, dt.RecordDate, dt.Notes, u.FullName AS DanisanAdi
+    FROM DailyTracking dt
+    INNER JOIN Clients c ON c.ClientID = dt.ClientID
+    INNER JOIN Dietitians di ON di.DietitianID = c.DietitianID AND di.UserID = @did
+    INNER JOIN Users u ON u.UserID = c.UserID
+    WHERE 1=1 ${dateClause}
+    ORDER BY dt.RecordDate DESC, dt.TrackingID DESC
+  `);
+
+  return result.recordset.map((row) => {
+    const dec = decodeDailyTrackingNotes(row.Notes);
+    const base = {
+      id: row.TrackingID,
+      danisanAdi: row.DanisanAdi ?? "",
+      tarih: fmtDate(row.RecordDate),
+      su: 0,
+      durum: "Takipte",
+    };
+    if (dec.kind === "activity") {
+      return {
+        ...base,
+        kind: "activity",
+        ogun: "Aktivite",
+        detay: dec.aktivite,
+        kalori: 0,
+        aktiviteSure: dec.sure,
+        yakilanKalori: dec.yakilanKalori,
+        not: dec.not,
+      };
+    }
+    return {
+      ...base,
+      kind: "meal",
+      detay: dec.besin,
+      ogun: dec.ogun,
+      kalori: dec.kalori,
+      not: "",
+    };
+  });
+}
+
+/** Son `days` gün (bugün dahil) için DailyTracking + UserMeasurements özeti. */
+export async function getWeeklyReportSummaryForClientUser(clientUserId, opts = {}) {
+  const daysWindow = Math.min(Math.max(Number(opts.days) || 7, 1), 90);
+  const end = new Date();
+  end.setHours(12, 0, 0, 0);
+  const start = new Date(end);
+  start.setDate(start.getDate() - (daysWindow - 1));
+  const pad = (n) => String(n).padStart(2, "0");
+  const isoLocal = (d) =>
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const fromStr = isoLocal(start);
+  const toStr = isoLocal(end);
+
+  const entries = await listDailyTrackingForClientUser(clientUserId, {
+    from: fromStr,
+    to: toStr,
+  });
+  const allMeas = await getUserMeasurements(clientUserId);
+  const measurements = (allMeas || []).filter((m) => {
+    const t = (m.tarih ?? "").slice(0, 10);
+    return t >= fromStr && t <= toStr;
+  });
+  const user = await getUserById(clientUserId);
+  const core = buildWeeklyReportSummary({
+    entries,
+    measurements,
+    profileKilo: user?.kilo,
+    profileHedef: user?.hedef,
+    daysWindow,
+  });
+  return {
+    ...core,
+    periodFrom: fromStr,
+    periodTo: toStr,
+    days: daysWindow,
   };
 }

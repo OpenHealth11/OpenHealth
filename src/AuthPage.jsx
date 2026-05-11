@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { validateEmail } from "../validation.js";
+import { apiUrl } from "./apiBase.js";
 import "./AuthPage.css";
 
 function AuthPage({
@@ -22,6 +23,13 @@ function AuthPage({
     setAuthError("");
     if (authMode === "register") setRegisterNotice("");
   }, [authMode, role]);
+
+  useEffect(() => {
+    const flash = sessionStorage.getItem("authFlash");
+    if (!flash) return;
+    sessionStorage.removeItem("authFlash");
+    setAuthError(flash);
+  }, []);
 
   function messageFromBody(status, raw) {
     try {
@@ -57,7 +65,7 @@ function AuthPage({
     setAuthLoading(true);
 
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch(apiUrl("/api/auth/login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -139,7 +147,7 @@ function AuthPage({
     setAuthLoading(true);
 
     try {
-      const res = await fetch("/api/auth/register", {
+      const res = await fetch(apiUrl("/api/auth/register"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

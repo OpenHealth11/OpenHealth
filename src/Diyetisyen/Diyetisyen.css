@@ -765,6 +765,44 @@ body {
   color: #6b7280;
 }
 
+.dy-client-btn {
+  margin-top: 14px;
+  width: 100%;
+  padding: 11px 16px;
+  border-radius: 14px;
+  border: none;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 14px;
+  color: #fff;
+  background: linear-gradient(135deg, #215f4e 0%, #2f806a 100%);
+  box-shadow: 0 8px 20px rgba(33, 95, 78, 0.28);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.dy-client-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px rgba(33, 95, 78, 0.34);
+}
+
+.dy-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.dy-modal-dialog {
+  max-width: 560px;
+  width: 100%;
+  max-height: min(90vh, 720px);
+  overflow: auto;
+}
+
 @media (max-width: 1100px) {
   .dy-modern-stats,
   .dy-client-card-grid,

@@ -4,6 +4,8 @@
 import * as jsonStore from "./userStore.js";
 import * as sqlRepo from "./userRepositorySql.js";
 
+export { resolveDailyTrackingKind } from "./dailyTrackingKind.js";
+
 export function useSqlUsers() {
   return Boolean(process.env.MSSQL_CONNECTION_STRING?.trim());
 }
@@ -66,12 +68,6 @@ export async function updateUserHealthInfo(userId, healthData) {
     : j(jsonStore.updateUserHealthInfo(userId, healthData));
 }
 
-export async function updateClientKanRaporu(userId, payload) {
-  return useSqlUsers()
-    ? sqlRepo.updateClientKanRaporu(userId, payload)
-    : j(jsonStore.updateClientKanRaporu(userId, payload));
-}
-
 export async function getUserMeasurements(userId) {
   return useSqlUsers()
     ? sqlRepo.getUserMeasurements(userId)
@@ -124,4 +120,34 @@ export async function setDietitianAccountStatus(userId, statusCode) {
   return useSqlUsers()
     ? sqlRepo.setDietitianAccountStatus(userId, statusCode)
     : j(jsonStore.setDietitianAccountStatus(userId, statusCode));
+}
+
+export async function listDailyTrackingForClientUser(userId, range) {
+  return useSqlUsers()
+    ? sqlRepo.listDailyTrackingForClientUser(userId, range)
+    : j(jsonStore.listDailyTrackingForClientUser(userId, range));
+}
+
+export async function insertDailyMealForClientUser(userId, payload) {
+  return useSqlUsers()
+    ? sqlRepo.insertDailyMealForClientUser(userId, payload)
+    : j(jsonStore.insertDailyMealForClientUser(userId, payload));
+}
+
+export async function deleteDailyMealForClientUser(userId, trackingId) {
+  return useSqlUsers()
+    ? sqlRepo.deleteDailyMealForClientUser(userId, trackingId)
+    : j(jsonStore.deleteDailyMealForClientUser(userId, trackingId));
+}
+
+export async function listDailyTrackingForDietitianUser(diyetisyenUserId, range) {
+  return useSqlUsers()
+    ? sqlRepo.listDailyTrackingForDietitianUser(diyetisyenUserId, range)
+    : j(jsonStore.listDailyTrackingForDietitianUser(diyetisyenUserId, range));
+}
+
+export async function getWeeklyReportSummaryForClientUser(userId, opts) {
+  return useSqlUsers()
+    ? sqlRepo.getWeeklyReportSummaryForClientUser(userId, opts)
+    : j(jsonStore.getWeeklyReportSummaryForClientUser(userId, opts));
 }

@@ -96,16 +96,18 @@ function GunlukTakipPage({
     not: "",
   });
 
-  const [aktiviteKayitlari, setAktiviteKayitlari] = useState([]);
+  const mealListe = liste.filter((item) => item.kind !== "activity");
+  const aktiviteKayitlari = liste.filter((item) => item.kind === "activity");
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!form.besin.trim() || !form.kalori) return;
 
-    addGunlukKayit({
+    await addGunlukKayit({
       ...form,
       kalori: Number(form.kalori),
+      tarih: new Date().toISOString().split("T")[0],
     });
 
     setForm({
@@ -115,20 +117,19 @@ function GunlukTakipPage({
     });
   };
 
-  const handleAktiviteSubmit = (e) => {
+  const handleAktiviteSubmit = async (e) => {
     e.preventDefault();
 
     if (!aktiviteForm.aktivite.trim() || !aktiviteForm.sure) return;
 
-    const yeniAktivite = {
-      id: Date.now(),
-      aktivite: aktiviteForm.aktivite,
+    await addGunlukKayit({
+      kind: "activity",
+      aktivite: aktiviteForm.aktivite.trim(),
       sure: Number(aktiviteForm.sure),
       yakilanKalori: Number(aktiviteForm.yakilanKalori || 0),
       not: aktiviteForm.not,
-    };
-     
-    setAktiviteKayitlari([yeniAktivite, ...aktiviteKayitlari]);
+      tarih: new Date().toISOString().split("T")[0],
+    });
 
     setAktiviteForm({
       aktivite: "",
@@ -138,13 +139,11 @@ function GunlukTakipPage({
     });
   };
 
-  const deleteAktiviteKayit = (id) => {
-    setAktiviteKayitlari(
-      aktiviteKayitlari.filter((item) => item.id !== id)
-    );
+  const deleteAktiviteKayit = async (id) => {
+    await deleteGunlukKayit(id);
   };
 
-  const toplamKalori = liste.reduce(
+  const toplamKalori = mealListe.reduce(
     (sum, item) => sum + Number(item.kalori ?? 0),
     0
   );
@@ -203,6 +202,10 @@ function GunlukTakipPage({
           <strong style={{ color: "#334155", display: "block" }}>
             {item.besin}
           </strong>
+          <span style={{ color: "#64748b", fontSize: "12px", display: "block", marginTop: "4px" }}>
+            {(item.tarih ? `${item.tarih} · ` : "")}
+            {ogunForItem(item)}
+          </span>
           <span style={{ color: "#10b981", fontSize: "14px", fontWeight: "700" }}>
             {item.kalori} kcal
           </span>
@@ -211,7 +214,9 @@ function GunlukTakipPage({
 
       <button
         type="button"
-        onClick={() => deleteGunlukKayit(item.id)}
+        onClick={async () => {
+          await deleteGunlukKayit(item.id);
+        }}
         style={{
           backgroundColor: "#fee2e2",
           color: "#ef4444",
@@ -231,6 +236,10 @@ function GunlukTakipPage({
       <h2 className="page-title" style={{ marginBottom: "25px", fontWeight: "800", color: "#1e4d3b" }}>
         Günlük Takip
       </h2>
+
+      <p style={{ margin: "-12px 0 22px", color: "#64748b", fontSize: "14px", maxWidth: "720px" }}>
+        Eklediğin öğünler diyetisyeninin panelindeki <strong>Günlük Takip</strong> sayfasına düşer (aynı veritabanı kaydı).
+      </p>
 
       <div className="card" style={{ padding: "25px", borderRadius: "20px", backgroundColor: "white", marginBottom: "30px", borderTop: "5px solid #3b82f6" }}>
         <h3 style={{ display: "flex", alignItems: "center", gap: "10px", color: "#1e4d3b" }}>
@@ -282,13 +291,13 @@ function GunlukTakipPage({
           </strong>
         </div>
 
-        {liste.length === 0 ? (
+        {mealListe.length === 0 ? (
           <p style={{ color: "#94a3b8", textAlign: "center" }}>
             Bugün henüz besin kaydı eklemedin.
           </p>
         ) : (
           ogunler.map((ogun) => {
-            const ogunKayitlari = liste.filter((item) => ogunForItem(item) === ogun.ad);
+            const ogunKayitlari = mealListe.filter((item) => ogunForItem(item) === ogun.ad);
             const ogunToplam = ogunKayitlari.reduce((sum, item) => sum + Number(item.kalori ?? 0), 0);
 
             return (

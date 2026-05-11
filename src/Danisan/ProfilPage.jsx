@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { FiUser, FiSave, FiUpload, FiHeart, FiActivity, FiFileText, FiDownload } from "react-icons/fi";
+import { useEffect, useRef, useState } from "react";
+import { FiUser, FiSave, FiHeart, FiActivity, FiFileText, FiUpload } from "react-icons/fi";
 import { validateProfileMetrics } from "../../validation.js";
 
 function ProfilPage({ user, updateProfile }) {
@@ -11,11 +11,13 @@ function ProfilPage({ user, updateProfile }) {
     alerji: "Yok",
     hastalik: "Yok",
     ilaclar: "",
-    kanDegerleriDosya: null,
   });
 
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const kanPdfInputRef = useRef(null);
+  const [kanPdfDrag, setKanPdfDrag] = useState(false);
+  const [kanPdfSecimi, setKanPdfSecimi] = useState(null);
 
   useEffect(() => {
     setForm({
@@ -26,7 +28,6 @@ function ProfilPage({ user, updateProfile }) {
       alerji: user?.alerji || "Yok",
       hastalik: user?.hastalik || "Yok",
       ilaclar: user?.kullanilanIlaclar || "",
-      kanDegerleriDosya: null,
     });
   }, [
     user?.id,
@@ -37,57 +38,7 @@ function ProfilPage({ user, updateProfile }) {
     user?.alerji,
     user?.hastalik,
     user?.kullanilanIlaclar,
-    user?.hasKanRaporu,
-    user?.kanRaporuOriginalName,
   ]);
-
-  const handleFileChange = (e) => {
-    const file = e.target.files?.[0];
-    setForm((prev) => ({
-      ...prev,
-      kanDegerleriDosya: file || null,
-    }));
-  };
-
-  const kanGosterimAdi =
-    form.kanDegerleriDosya instanceof File
-      ? form.kanDegerleriDosya.name
-      : user?.hasKanRaporu && user?.kanRaporuOriginalName
-        ? user.kanRaporuOriginalName
-        : null;
-
-  const downloadKanRaporu = async () => {
-    const token = localStorage.getItem("token");
-    if (!token?.trim()) {
-      alert("Oturum bulunamadı.");
-      return;
-    }
-    try {
-      const res = await fetch("/api/profile/kan-raporu", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) {
-        const t = await res.text();
-        let j = {};
-        try {
-          j = t ? JSON.parse(t) : {};
-        } catch {
-          /* ignore */
-        }
-        alert(j.error || "Dosya indirilemedi.");
-        return;
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = user?.kanRaporuOriginalName || "kan-raporu.pdf";
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      alert("İndirme başarısız.");
-    }
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -104,7 +55,6 @@ function ProfilPage({ user, updateProfile }) {
 
     setSaving(true);
     try {
-      const kanFile = form.kanDegerleriDosya instanceof File ? form.kanDegerleriDosya : null;
       const payload = {
         fullName: form.fullName,
         boy: form.boy,
@@ -115,20 +65,38 @@ function ProfilPage({ user, updateProfile }) {
         kullanilanIlaclar: form.ilaclar,
       };
 
-      const result = await updateProfile(payload, kanFile);
+      const result = await updateProfile(payload);
 
       if (result?.ok) {
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
-        setForm((prev) => ({
-          ...prev,
-          kanDegerleriDosya: null,
-        }));
       }
     } finally {
       setSaving(false);
     }
   };
+
+  function kanPdfDosyaSec(fileList) {
+    const f = fileList?.[0];
+    if (!f) return;
+    const pdfMi =
+      f.type === "application/pdf" || String(f.name).toLowerCase().endsWith(".pdf");
+    if (!pdfMi) {
+      alert("Lütfen PDF dosyası seçin.");
+      return;
+    }
+    const maxMb = 15;
+    if (f.size > maxMb * 1024 * 1024) {
+      alert(`Dosya boyutu en fazla ${maxMb} MB olabilir.`);
+      return;
+    }
+    setKanPdfSecimi({ file: f });
+  }
+
+  function kanPdfSurukleOlay(e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
 
   return (
     <div className="page" style={{ animation: "fadeIn 0.5s ease-in-out" }}>
@@ -150,13 +118,21 @@ function ProfilPage({ user, updateProfile }) {
             Danışan Hesabı
           </p>
 
-          <div style={statRowStyle}>
+          <div
+            style={{
+              ...statRowStyle,
+              display: "grid",
+              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+              gap: "12px",
+              textAlign: "center",
+            }}
+          >
             <div>
               <div style={statLabelStyle}>BOY</div>
               <div style={statValueStyle}>{form.boy || "-"} cm</div>
             </div>
 
-            <div style={middleStatStyle}>
+            <div>
               <div style={statLabelStyle}>KİLO</div>
               <div style={statValueStyle}>{form.kilo || "-"} kg</div>
             </div>
@@ -201,40 +177,6 @@ function ProfilPage({ user, updateProfile }) {
                 <p style={infoTextStyle}>
                   {form.ilaclar ? form.ilaclar : "Henüz ilaç bilgisi girilmedi"}
                 </p>
-              </div>
-            </div>
-
-            <div style={infoBoxStyle}>
-              <div style={iconCircleStyle}>
-                <FiUpload />
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <span style={infoLabelStyle}>Kan Değerleri</span>
-                <p style={infoTextStyle}>
-                  {kanGosterimAdi || "Henüz dosya yüklenmedi"}
-                </p>
-                {user?.hasKanRaporu ? (
-                  <button
-                    type="button"
-                    onClick={downloadKanRaporu}
-                    style={{
-                      marginTop: "10px",
-                      padding: "8px 14px",
-                      borderRadius: "10px",
-                      border: "1px solid #10b981",
-                      background: "#ecfdf5",
-                      color: "#047857",
-                      fontWeight: "700",
-                      cursor: "pointer",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "8px",
-                    }}
-                  >
-                    <FiDownload />
-                    Kayıtlı raporu indir
-                  </button>
-                ) : null}
               </div>
             </div>
           </div>
@@ -330,22 +272,145 @@ function ProfilPage({ user, updateProfile }) {
               />
             </div>
 
-            <div style={{ gridColumn: "span 2" }}>
-              <label style={labelStyle}>KAN DEĞERLERİ YÜKLE</label>
+            <div
+              style={{
+                gridColumn: "span 2",
+                marginTop: "8px",
+                paddingTop: "20px",
+                borderTop: "1px solid #e2e8f0",
+              }}
+            >
+              <label style={labelStyle}>KAN TETKİK RAPORU (PDF)</label>
+              <p style={{ color: "#64748b", fontSize: "13px", margin: "0 0 14px", lineHeight: 1.5 }}>
+                Kan değerlerinizi içeren raporu PDF olarak ekleyebilirsiniz. Sunucu ve veritabanı
+                tarafı hazır olduğunda kayıt bağlanacak; şimdilik seçim yalnızca bu sayfada önizlenir.
+              </p>
 
-              <label style={uploadBoxStyle}>
-                <FiUpload />
-                {form.kanDegerleriDosya
-                  ? form.kanDegerleriDosya.name
-                  : "PDF veya JPG/PNG seç (en fazla 8 MB)"}
+              <input
+                ref={kanPdfInputRef}
+                type="file"
+                accept="application/pdf,.pdf"
+                style={{ display: "none" }}
+                onChange={(e) => {
+                  kanPdfDosyaSec(e.target.files);
+                  e.target.value = "";
+                }}
+              />
 
-                <input
-                  type="file"
-                  accept=".pdf,.jpg,.jpeg,.png,application/pdf"
-                  onChange={handleFileChange}
-                  style={{ display: "none" }}
-                />
-              </label>
+              <div
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    kanPdfInputRef.current?.click();
+                  }
+                }}
+                onDragEnter={(e) => {
+                  kanPdfSurukleOlay(e);
+                  setKanPdfDrag(true);
+                }}
+                onDragOver={kanPdfSurukleOlay}
+                onDragLeave={(e) => {
+                  kanPdfSurukleOlay(e);
+                  setKanPdfDrag(false);
+                }}
+                onDrop={(e) => {
+                  kanPdfSurukleOlay(e);
+                  setKanPdfDrag(false);
+                  kanPdfDosyaSec(e.dataTransfer.files);
+                }}
+                onClick={() => kanPdfInputRef.current?.click()}
+                style={{
+                  border: `2px dashed ${kanPdfDrag ? "#10b981" : "#cbd5e1"}`,
+                  borderRadius: "16px",
+                  padding: "28px 20px",
+                  textAlign: "center",
+                  backgroundColor: kanPdfDrag ? "#ecfdf5" : "#f8fafc",
+                  cursor: "pointer",
+                  transition: "border-color 0.2s, background-color 0.2s",
+                }}
+              >
+                <div
+                  style={{
+                    width: "52px",
+                    height: "52px",
+                    margin: "0 auto 12px",
+                    borderRadius: "14px",
+                    backgroundColor: "#ecfdf5",
+                    color: "#10b981",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <FiUpload size={26} />
+                </div>
+                <strong style={{ color: "#1e4d3b", display: "block", marginBottom: "6px" }}>
+                  PDF sürükleyip bırakın veya tıklayarak seçin
+                </strong>
+                <span style={{ color: "#94a3b8", fontSize: "13px" }}>
+                  Yalnızca .pdf · en fazla 15 MB
+                </span>
+              </div>
+
+              {kanPdfSecimi ? (
+                <div
+                  style={{
+                    marginTop: "16px",
+                    padding: "14px 16px",
+                    borderRadius: "12px",
+                    backgroundColor: "#f0fdf4",
+                    border: "1px solid #bbf7d0",
+                    display: "flex",
+                    flexWrap: "wrap",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "12px",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
+                    <FiFileText color="#15803d" size={22} />
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, color: "#166534", fontSize: "14px" }}>
+                        Seçilen dosya
+                      </div>
+                      <div
+                        style={{
+                          color: "#15803d",
+                          fontSize: "13px",
+                          wordBreak: "break-all",
+                        }}
+                      >
+                        {kanPdfSecimi.file.name}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setKanPdfSecimi(null);
+                    }}
+                    style={{
+                      padding: "8px 14px",
+                      borderRadius: "10px",
+                      border: "1px solid #fca5a5",
+                      background: "#fef2f2",
+                      color: "#b91c1c",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      fontSize: "13px",
+                    }}
+                  >
+                    Seçimi kaldır
+                  </button>
+                </div>
+              ) : null}
+
+              <p style={{ color: "#94a3b8", fontSize: "12px", margin: "14px 0 0" }}>
+                Not: Sayfayı yenilerseniz seçim sıfırlanır (kalıcı kayıt henüz yok).
+              </p>
             </div>
 
             <button
@@ -425,12 +490,6 @@ const statValueStyle = {
   color: "#1e4d3b",
 };
 
-const middleStatStyle = {
-  borderLeft: "1px solid #f1f5f9",
-  borderRight: "1px solid #f1f5f9",
-  padding: "0 20px",
-};
-
 const healthBoxWrapperStyle = {
   marginTop: "30px",
   paddingTop: "25px",
@@ -505,20 +564,6 @@ const inputStyle = {
   borderRadius: "10px",
   border: "1px solid #e2e8f0",
   outline: "none",
-};
-
-const uploadBoxStyle = {
-  border: "2px dashed #cbd5e1",
-  borderRadius: "14px",
-  padding: "20px",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: "10px",
-  cursor: "pointer",
-  color: "#1e4d3b",
-  fontWeight: "700",
-  backgroundColor: "#f8fafc",
 };
 
 const buttonStyle = {

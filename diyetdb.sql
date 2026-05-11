@@ -80,7 +80,6 @@ CREATE TABLE Clients (
     ClientID INT IDENTITY(1,1) PRIMARY KEY,
     UserID INT NOT NULL UNIQUE,
     DietitianID INT NULL,
-    Yas INT NULL,
     Boy DECIMAL(5,2) NULL,
     Kilo DECIMAL(5,2) NULL,
     Hedef DECIMAL(5,2) NULL,
@@ -98,9 +97,6 @@ CREATE TABLE Clients (
     AmeliyatGecmisi NVARCHAR(MAX) NULL,
     SigaraAlkol NVARCHAR(MAX) NULL,
     SaglikNotu NVARCHAR(MAX) NULL,
-    KanRaporuRelativePath NVARCHAR(500) NULL,
-    KanRaporuOriginalName NVARCHAR(260) NULL,
-    KanRaporuUploadedAt DATETIME2 NULL,
     CreatedAt DATETIME2 NOT NULL CONSTRAINT DF_Clients_CreatedAt DEFAULT SYSUTCDATETIME(),
     UpdatedAt DATETIME2 NULL,
     CONSTRAINT FK_Clients_Users
@@ -239,12 +235,9 @@ CREATE INDEX IX_PlanOgun_PlanID_Gun ON PlanOgun(PlanID, Gun);
 GO
 
 /*
-  Mevcut DiyetDB güncellemesi (tabloları silmeden bir kez çalıştırın):
-
-  IF COL_LENGTH('dbo.Clients', 'KanRaporuRelativePath') IS NULL
-    ALTER TABLE dbo.Clients ADD KanRaporuRelativePath NVARCHAR(500) NULL;
-  IF COL_LENGTH('dbo.Clients', 'KanRaporuOriginalName') IS NULL
-    ALTER TABLE dbo.Clients ADD KanRaporuOriginalName NVARCHAR(260) NULL;
-  IF COL_LENGTH('dbo.Clients', 'KanRaporuUploadedAt') IS NULL
-    ALTER TABLE dbo.Clients ADD KanRaporuUploadedAt DATETIME2 NULL;
+  Diyetisyen genis profil (uzmanlik, telefon, okul vb.):
+  dbo.Dietitians tablosunda yalnizca DietitianID ve UserID (baglantili Users kaydi) tutulur.
+  Bu ek alanlar kalici olarak veritabaninda yok; Diyetisyen Profil sayfasindaki uzmanlik vb.
+  simdilik arayuz/mock verisidir. Kalici saklama icin Dietitians veya Users uzerine kolonlar
+  veya JSON profil alani eklenebilir.
 */
