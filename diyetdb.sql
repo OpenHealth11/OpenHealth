@@ -354,6 +354,20 @@ ON OnayTalepStatuleri(StatuAdi);
 
 GO
 
+CREATE TABLE KritikLimitler (
+    LimitID INT IDENTITY(1,1) PRIMARY KEY,
+    ParametreAdi NVARCHAR(100) NOT NULL,
+    AltLimit DECIMAL(10,2) NOT NULL,
+    UstLimit DECIMAL(10,2) NOT NULL,
+    Birim NVARCHAR(50) NULL
+);
+GO
+
+CREATE INDEX IX_KritikLimitler_ParametreAdi
+ON KritikLimitler(ParametreAdi);
+
+GO
+
 SELECT TOP 20 * FROM Clients;
 SELECT TOP 20 * FROM Dietitians;
 SELECT TOP 20 * FROM Users;
