@@ -308,6 +308,40 @@ ON OgunKayitlari(DanisanID, Tarih DESC);
 
 GO
 
+CREATE TABLE AktiviteVerileri (
+    AktiviteID INT IDENTITY(1,1) PRIMARY KEY,
+    DanisanID INT NOT NULL,
+    AktiviteAdi NVARCHAR(100) NOT NULL,
+    SureDakika INT NOT NULL,
+    KaloriYakimi INT NULL,
+    Tarih DATE NOT NULL DEFAULT CAST(GETDATE() AS DATE),
+
+    CONSTRAINT FK_AktiviteVerileri_Clients
+        FOREIGN KEY (DanisanID)
+        REFERENCES Clients(ClientID)
+        ON DELETE CASCADE
+);
+GO
+
+CREATE INDEX IX_AktiviteVerileri_DanisanID_Tarih
+ON AktiviteVerileri(DanisanID, Tarih DESC);
+
+GO
+
+CREATE TABLE EsDegerGruplari (
+    GrupID INT IDENTITY(1,1) PRIMARY KEY,
+    GrupAdi NVARCHAR(100) NOT NULL,
+    BesinAdi NVARCHAR(100) NOT NULL,
+    Miktar NVARCHAR(50) NOT NULL,
+    Kalori INT NULL
+);
+GO
+
+CREATE INDEX IX_EsDegerGruplari_GrupAdi
+ON EsDegerGruplari(GrupAdi);
+
+GO
+
 SELECT TOP 20 * FROM Clients;
 SELECT TOP 20 * FROM Dietitians;
 SELECT TOP 20 * FROM Users;
