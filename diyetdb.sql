@@ -342,6 +342,18 @@ ON EsDegerGruplari(GrupAdi);
 
 GO
 
+CREATE TABLE OnayTalepStatuleri (
+    StatuID INT IDENTITY(1,1) PRIMARY KEY,
+    StatuAdi NVARCHAR(50) NOT NULL,
+    Aciklama NVARCHAR(255) NULL
+);
+GO
+
+CREATE INDEX IX_OnayTalepStatuleri_StatuAdi
+ON OnayTalepStatuleri(StatuAdi);
+
+GO
+
 SELECT TOP 20 * FROM Clients;
 SELECT TOP 20 * FROM Dietitians;
 SELECT TOP 20 * FROM Users;
