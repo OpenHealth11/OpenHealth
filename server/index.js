@@ -21,6 +21,7 @@ import {
   listApprovedDanisanlar,
   getClientsByDiyetisyenId,
   getRequestsByDiyetisyenId,
+  getNotificationsByUserId,
 } from "./userStore.js";
 import {
   listPlansByDietitian,
@@ -743,6 +744,31 @@ app.get("/", (_req, res) => {
   <p>Deneme: <a href="/api/health">/api/health</a></p>
 </body></html>`);
 });
+
+app.get("/api/notifications", async (req, res) => {
+  try {
+    const user = await getUserFromAuthHeader(req);
+
+    if (!user) {
+      return res.status(401).json({
+        error: "Yetkisiz.",
+      });
+    }
+
+    const notifications = await getNotificationsByUserId(user.id);
+
+    return res.json({
+      notifications,
+    });
+  } catch (e) {
+    console.error("[notifications]", e);
+
+    return res.status(500).json({
+      error: "Bildirimler alınamadı.",
+    });
+  }
+});
+
 
 app.listen(PORT, () => {
   console.log(`OpenHealth API -> http://localhost:${PORT}/`);

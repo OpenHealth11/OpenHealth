@@ -1,3 +1,5 @@
+import sql from "mssql";
+import { getPool } from "./db.js";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -307,4 +309,28 @@ export function createRequest(danisanId, diyetisyenId) {
   saveDb(db);
 
   return yeniTalep;
+}
+
+export async function getNotificationsByUserId(userId) {
+  const pool = await getPool();
+
+  const result = await pool
+    .request()
+    .input("userId", sql.Int, Number(userId))
+    .query(`
+      SELECT
+        NotificationID,
+        NotificationType,
+        Severity,
+        Title,
+        Body,
+        PayloadJSON,
+        ReadAt,
+        CreatedAt
+      FROM Notifications
+      WHERE RecipientUserID = @userId
+      ORDER BY CreatedAt DESC
+    `);
+
+  return result.recordset;
 }

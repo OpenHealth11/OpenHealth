@@ -122,3 +122,27 @@ export async function createUser({ fullName, email, passwordHash, role }) {
     throw e;
   }
 }
+
+export async function getNotificationsByUserId(userId) {
+  const pool = await getPool();
+
+  const result = await pool
+    .request()
+    .input("userId", sql.Int, Number(userId))
+    .query(`
+      SELECT
+        NotificationID,
+        NotificationType,
+        Severity,
+        Title,
+        Body,
+        PayloadJSON,
+        ReadAt,
+        CreatedAt
+      FROM Notifications
+      WHERE RecipientUserID = @userId
+      ORDER BY CreatedAt DESC
+    `);
+
+  return result.recordset;
+}
