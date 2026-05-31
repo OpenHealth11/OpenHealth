@@ -32,6 +32,11 @@ import {
   deletePlanOgun,
   deletePlanByDietitian,
 } from "./planStore.js";
+import {
+  getNotifications,
+  createNotification,
+  getDietitianUserIdByClientUserId,
+} from "./userRepositorySql.js";
 
 if (!process.env.JWT_SECRET) {
   throw new Error("JWT_SECRET missing");
@@ -587,6 +592,26 @@ app.post("/api/measurements", async (req, res) => {
       return res.status(404).json({ error: "Kullanıcı bulunamadı." });
     }
 
+
+    console.log("Measurement created for user:", user.id);
+
+const dietitianUserId =
+  await getDietitianUserIdByClientUserId(user.id);
+
+console.log("Dietitian User ID:", dietitianUserId);
+
+if (dietitianUserId) {
+  console.log("Creating notification...");
+
+  await createNotification({
+    recipientUserId: dietitianUserId,
+    notificationType: "measurement",
+    title: "Yeni Ölçüm Kaydı",
+    body: `${user.fullName} yeni bir ölçüm kaydı ekledi.`,
+    severity: "normal",
+  });
+}
+
     return res.status(201).json({
       message: "Ölçüm kaydı eklendi.",
       measurement,
@@ -732,6 +757,47 @@ app.get("/api/auth/me", async (req, res) => {
 
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true });
+});
+
+app.get("/api/test-notifications", async (_req, res) => {
+  try {
+    const notifications = await getNotifications(2);
+
+    return res.json({
+      count: notifications.length,
+      notifications,
+    });
+  } catch (e) {
+    console.error("[test-notifications]", e);
+
+    return res.status(500).json({
+      error: e.message,
+    });
+  }
+});
+
+app.get("/api/notifications", async (req, res) => {
+  try {
+    const user = await getUserFromAuthHeader(req);
+
+    if (!user) {
+      return res.status(401).json({
+        error: "Yetkisiz.",
+      });
+    }
+
+    const notifications = await getNotifications(user.id);
+
+    return res.json({
+      notifications,
+    });
+  } catch (e) {
+    console.error("[notifications]", e);
+
+    return res.status(500).json({
+      error: "Sunucu hatası.",
+    });
+  }
 });
 
 app.get("/", (_req, res) => {
