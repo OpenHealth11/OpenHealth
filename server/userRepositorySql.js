@@ -122,3 +122,82 @@ export async function createUser({ fullName, email, passwordHash, role }) {
     throw e;
   }
 }
+
+export async function getNotifications(userId) {
+  const pool = await getPool();
+
+  const result = await pool
+    .request()
+    .input("userId", sql.Int, userId)
+    .query(`
+      SELECT
+        NotificationID,
+        NotificationType,
+        Severity,
+        Title,
+        Body,
+        CreatedAt,
+        ReadAt
+      FROM Notifications
+      WHERE RecipientUserID = @userId
+      ORDER BY CreatedAt DESC
+    `);
+
+  return result.recordset;
+}
+
+export async function createNotification({
+  recipientUserId,
+  notificationType,
+  title,
+  body,
+  severity = "normal",
+}) {
+  const pool = await getPool();
+
+  const result = await pool
+    .request()
+    .input("recipientUserId", sql.Int, recipientUserId)
+    .input("notificationType", sql.NVarChar(40), notificationType)
+    .input("severity", sql.NVarChar(20), severity)
+    .input("title", sql.NVarChar(200), title)
+    .input("body", sql.NVarChar(sql.MAX), body)
+    .query(`
+      INSERT INTO Notifications
+      (
+        RecipientUserID,
+        NotificationType,
+        Severity,
+        Title,
+        Body
+      )
+      OUTPUT INSERTED.*
+      VALUES
+      (
+        @recipientUserId,
+        @notificationType,
+        @severity,
+        @title,
+        @body
+      )
+    `);
+
+  return result.recordset[0];
+}
+
+export async function getDietitianUserIdByClientUserId(clientUserId) {
+  const pool = await getPool();
+
+  const result = await pool
+    .request()
+    .input("clientUserId", sql.Int, clientUserId)
+    .query(`
+      SELECT d.UserID AS DietitianUserID
+      FROM Clients c
+      INNER JOIN Dietitians d
+        ON d.DietitianID = c.DietitianID
+      WHERE c.UserID = @clientUserId
+    `);
+
+  return result.recordset[0]?.DietitianUserID ?? null;
+}
