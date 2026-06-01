@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { apiUrl } from "../apiBase.js";
 
 function Bildirimler({ bildirimler: propsBildirimler = [] }) {
   const propsSafe = Array.isArray(propsBildirimler) ? propsBildirimler : [];
@@ -17,7 +18,7 @@ function Bildirimler({ bildirimler: propsBildirimler = [] }) {
           return;
         }
 
-        const res = await fetch("/api/notifications", {
+        const res = await fetch(apiUrl("/api/notifications"), {
           headers: { Authorization: `Bearer ${token}` },
         });
 

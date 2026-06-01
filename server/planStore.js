@@ -195,12 +195,15 @@ export async function createPlanForDietitian(dietitianUserId, payload) {
       .query(`
         INSERT INTO BeslenmePlani
           (DietitianUserID, ClientUserID, PlanAdi, BaslangicTarihi, BitisTarihi)
-        OUTPUT INSERTED.PlanID
         VALUES
-          (@dietitianUserId, @clientUserId, @planAdi, @baslangicTarihi, @bitisTarihi)
+          (@dietitianUserId, @clientUserId, @planAdi, @baslangicTarihi, @bitisTarihi);
+        SELECT CAST(SCOPE_IDENTITY() AS INT) AS PlanID;
       `);
 
-    const planId = inserted.recordset[0].PlanID;
+    const planId = inserted.recordset[0]?.PlanID;
+    if (planId == null) {
+      throw new Error("Plan oluşturulamadı.");
+    }
 
     for (const row of ogunler) {
       await new sql.Request(transaction)

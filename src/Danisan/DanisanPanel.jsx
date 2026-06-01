@@ -82,6 +82,36 @@ export default function DanisanPanel() {
 
   useEffect(() => {
     let cancelled = false;
+    async function loadWater() {
+      const token = localStorage.getItem("token");
+      if (!token?.trim()) return;
+      try {
+        const res = await fetch(apiUrl("/api/danisan/water"), {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok || cancelled) return;
+        const body = await res.json();
+        if (body.water) {
+          setData((prev) => ({
+            ...prev,
+            water: {
+              icilen: Number(body.water.icilen) || 0,
+              hedef: Number(body.water.hedef) || 8,
+            },
+          }));
+        }
+      } catch {
+        /* yerel varsayılan kalır */
+      }
+    }
+    loadWater();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
     async function loadGunlukKayitlari() {
       const token = localStorage.getItem("token");
       if (!token?.trim()) return;
@@ -251,18 +281,39 @@ export default function DanisanPanel() {
 
   const dashboardMeals = useMemo(() => mealsFromLatestPlan(nutritionPlans), [nutritionPlans]);
 
+  const persistWater = async (icilen, hedef) => {
+    const token = localStorage.getItem("token");
+    if (!token?.trim()) return;
+    try {
+      await fetch(apiUrl("/api/danisan/water"), {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ icilen, hedef }),
+      });
+    } catch {
+      /* UI güncellendi; sunucu sonra senkron edilebilir */
+    }
+  };
+
   const addWater = () => {
-    setData((prev) => ({
-      ...prev,
-      water: { ...prev.water, icilen: Math.min(prev.water.icilen + 1, prev.water.hedef) },
-    }));
+    setData((prev) => {
+      const hedef = prev.water.hedef || 8;
+      const icilen = Math.min((prev.water.icilen || 0) + 1, hedef);
+      persistWater(icilen, hedef);
+      return { ...prev, water: { icilen, hedef } };
+    });
   };
 
   const removeWater = () => {
-    setData((prev) => ({
-      ...prev,
-      water: { ...prev.water, icilen: Math.max(prev.water.icilen - 1, 0) },
-    }));
+    setData((prev) => {
+      const hedef = prev.water.hedef || 8;
+      const icilen = Math.max((prev.water.icilen || 0) - 1, 0);
+      persistWater(icilen, hedef);
+      return { ...prev, water: { icilen, hedef } };
+    });
   };
 
   const addGunlukKayit = async (newItem) => {

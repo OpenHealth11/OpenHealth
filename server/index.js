@@ -34,6 +34,10 @@ import {
   listDailyTrackingForDietitianUser,
   getWeeklyReportSummaryForClientUser,
   resolveDailyTrackingKind,
+  listNotificationsForUser,
+  markNotificationRead,
+  getWaterTrackingForClientUser,
+  upsertWaterTrackingForClientUser,
 } from "./userService.js";
 import {
   listPlansByDietitian,
@@ -573,6 +577,88 @@ app.put("/api/profile", async (req, res) => {
     });
   } catch (e) {
     console.error("[profile-update]", e);
+    return res.status(500).json({ error: "Sunucu hatası." });
+  }
+});
+
+app.get("/api/notifications", async (req, res) => {
+  try {
+    const user = await getUserFromAuthHeader(req);
+    if (!user) {
+      return res.status(401).json({ error: "Yetkisiz." });
+    }
+    const limit = Number(req.query.limit);
+    const notifications = await listNotificationsForUser(
+      user.id,
+      Number.isFinite(limit) ? limit : 50
+    );
+    return res.json({ notifications });
+  } catch (e) {
+    console.error("[notifications-get]", e);
+    return res.status(500).json({ error: "Sunucu hatası." });
+  }
+});
+
+app.patch("/api/notifications/:id/read", async (req, res) => {
+  try {
+    const user = await getUserFromAuthHeader(req);
+    if (!user) {
+      return res.status(401).json({ error: "Yetkisiz." });
+    }
+    const ok = await markNotificationRead(user.id, req.params.id);
+    if (!ok) {
+      return res.status(404).json({ error: "Bildirim bulunamadı." });
+    }
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error("[notifications-read]", e);
+    return res.status(500).json({ error: "Sunucu hatası." });
+  }
+});
+
+app.get("/api/danisan/water", async (req, res) => {
+  try {
+    const user = await getUserFromAuthHeader(req);
+    if (!user) {
+      return res.status(401).json({ error: "Yetkisiz." });
+    }
+    if (user.role !== "danisan") {
+      return res.status(403).json({ error: "Bu işlem yalnızca danışan hesapları içindir." });
+    }
+    const tarih =
+      typeof req.query.tarih === "string" ? req.query.tarih.slice(0, 10) : undefined;
+    const water = await getWaterTrackingForClientUser(user.id, tarih);
+    if (!water) {
+      return res.status(404).json({ error: "Danışan kaydı bulunamadı." });
+    }
+    return res.json({ water });
+  } catch (e) {
+    console.error("[danisan-water-get]", e);
+    return res.status(500).json({ error: "Sunucu hatası." });
+  }
+});
+
+app.put("/api/danisan/water", async (req, res) => {
+  try {
+    const user = await getUserFromAuthHeader(req);
+    if (!user) {
+      return res.status(401).json({ error: "Yetkisiz." });
+    }
+    if (user.role !== "danisan") {
+      return res.status(403).json({ error: "Bu işlem yalnızca danışan hesapları içindir." });
+    }
+    const body = req.body ?? {};
+    const water = await upsertWaterTrackingForClientUser(user.id, {
+      consumedGlasses: body.consumedGlasses ?? body.icilen,
+      targetGlasses: body.targetGlasses ?? body.hedef,
+      recordDate: body.tarih ?? body.recordDate,
+    });
+    if (!water) {
+      return res.status(404).json({ error: "Danışan kaydı bulunamadı." });
+    }
+    return res.json({ water });
+  } catch (e) {
+    console.error("[danisan-water-put]", e);
     return res.status(500).json({ error: "Sunucu hatası." });
   }
 });

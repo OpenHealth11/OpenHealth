@@ -19,14 +19,15 @@ const USER_FROM = `
 FROM Users u
 INNER JOIN AccountStatuses s ON s.AccountStatusID = u.AccountStatusID
 LEFT JOIN Clients c ON c.UserID = u.UserID
-LEFT JOIN Dietitians dt ON dt.DietitianID = c.DietitianID
+LEFT JOIN Users dt ON dt.UserID = c.DietitianUserID
 `;
 
 const USER_SELECT = `
 SELECT u.UserID, u.FullName, u.Email, u.PasswordHash, u.Role, u.CreatedAt,
        u.ResetToken, u.ResetTokenExpiresAt,
        s.StatusCode,
-       dt.UserID AS DietitianUserID,
+       c.DietitianUserID,
+       c.Yas,
        c.Boy, c.Kilo, c.Hedef, c.SonGorusme, c.Durum, c.Alerji, c.Hastalik,
        c.KanGrubu, c.DogumTarihi, c.Cinsiyet, c.AktiviteSeviyesi, c.KronikRahatsizlik,
        c.KullanilanIlaclar, c.AmeliyatGecmisi, c.SigaraAlkol, c.SaglikNotu
@@ -65,6 +66,7 @@ export function mapFullUser(row) {
     hedef: fmtNum(row.Hedef),
     sonGorusme: fmtDate(row.SonGorusme),
     durum: row.Durum ?? "Pasif",
+    yas: row.Yas != null ? String(row.Yas) : "",
     diyetisyenId: row.DietitianUserID != null ? row.DietitianUserID : null,
     alerji: row.Alerji ?? "",
     hastalik: row.Hastalik ?? "",
@@ -409,33 +411,25 @@ export async function addUserMeasurement(userId, measurementData) {
   return mapMeasurementRow(result.recordset[0]);
 }
 
-async function dietitianPkForUser(pool, diyetisyenUserId) {
-  const r = await pool
-    .request()
-    .input("uid", sql.Int, Number(diyetisyenUserId))
-    .query(`SELECT DietitianID FROM Dietitians WHERE UserID = @uid`);
-  return r.recordset[0]?.DietitianID ?? null;
-}
-
 export async function getClientsByDiyetisyenId(diyetisyenUserId) {
   const pool = await getPool();
-  const did = await dietitianPkForUser(pool, diyetisyenUserId);
-  if (did == null) return [];
+  const duid = Number(diyetisyenUserId);
   const result = await pool
     .request()
-    .input("did", sql.Int, did)
+    .input("duid", sql.Int, duid)
     .query(`
-      SELECT u.UserID AS id, u.FullName AS fullName, c.Boy AS boy, c.Kilo AS kilo, c.Hedef AS hedef,
+      SELECT u.UserID AS id, u.FullName AS fullName, c.Yas AS yas, c.Boy AS boy, c.Kilo AS kilo, c.Hedef AS hedef,
              c.SonGorusme AS sonGorusme, c.Durum AS durum, c.Alerji AS alerji, c.Hastalik AS hastalik,
              c.KullanilanIlaclar AS kullanilanIlaclar
       FROM Clients c
       INNER JOIN Users u ON u.UserID = c.UserID
-      WHERE c.DietitianID = @did
+      WHERE c.DietitianUserID = @duid
       ORDER BY u.FullName
     `);
   return result.recordset.map((r) => ({
     id: r.id,
     fullName: r.fullName,
+    yas: r.yas != null ? String(r.yas) : "",
     boy: fmtNum(r.boy),
     kilo: fmtNum(r.kilo),
     hedef: fmtNum(r.hedef),
@@ -449,17 +443,15 @@ export async function getClientsByDiyetisyenId(diyetisyenUserId) {
 
 export async function getRequestsByDiyetisyenId(diyetisyenUserId) {
   const pool = await getPool();
-  const did = await dietitianPkForUser(pool, diyetisyenUserId);
-  if (did == null) return [];
   const result = await pool
     .request()
-    .input("did", sql.Int, did)
+    .input("duid", sql.Int, Number(diyetisyenUserId))
     .query(`
       SELECT r.RequestID AS id, du.FullName AS danisanAdi, r.Talep AS talep,
              CONVERT(VARCHAR(10), r.Tarih, 23) AS tarih
       FROM DietitianRequests r
       INNER JOIN Users du ON du.UserID = r.DanisanUserID
-      WHERE r.DietitianID = @did AND r.Durum = N'pending'
+      WHERE r.DietitianUserID = @duid AND r.Durum = N'pending'
       ORDER BY r.RequestID DESC
     `);
   return result.recordset.map((r) => ({
@@ -479,7 +471,7 @@ export async function approveRequest(requestId) {
     const reqRow = await new sql.Request(transaction)
       .input("rid", sql.Int, Number(requestId))
       .query(`
-        SELECT RequestID, DanisanUserID, DietitianID, Durum
+        SELECT RequestID, DanisanUserID, DietitianUserID, Durum
         FROM DietitianRequests WHERE RequestID = @rid
       `);
     const row = reqRow.recordset[0];
@@ -488,16 +480,32 @@ export async function approveRequest(requestId) {
       return null;
     }
     await new sql.Request(transaction)
-      .input("did", sql.Int, row.DietitianID)
+      .input("duid", sql.Int, row.DietitianUserID)
       .input("danisanUid", sql.Int, row.DanisanUserID)
       .query(`
-        UPDATE Clients SET DietitianID = @did, Durum = N'Aktif', UpdatedAt = SYSUTCDATETIME()
+        UPDATE Clients SET DietitianUserID = @duid, Durum = N'Aktif', UpdatedAt = SYSUTCDATETIME()
         WHERE UserID = @danisanUid
       `);
     await new sql.Request(transaction)
       .input("rid", sql.Int, Number(requestId))
       .query(`UPDATE DietitianRequests SET Durum = N'approved' WHERE RequestID = @rid`);
     await transaction.commit();
+    await insertNotification({
+      userId: row.DanisanUserID,
+      title: "Talep onaylandı",
+      message: "Diyetisyen atama talebiniz onaylandı.",
+      notificationType: "request_approved",
+      relatedEntityType: "DietitianRequest",
+      relatedEntityId: Number(requestId),
+    });
+    await insertNotification({
+      userId: row.DietitianUserID,
+      title: "Yeni danışan",
+      message: "Bir danışan atama talebini onayladınız.",
+      notificationType: "request_approved",
+      relatedEntityType: "DietitianRequest",
+      relatedEntityId: Number(requestId),
+    });
     return getUserById(row.DanisanUserID);
   } catch (e) {
     try {
@@ -511,19 +519,44 @@ export async function approveRequest(requestId) {
 
 export async function rejectRequest(requestId) {
   const pool = await getPool();
+  const pending = await pool
+    .request()
+    .input("rid", sql.Int, Number(requestId))
+    .query(`
+      SELECT DanisanUserID, DietitianUserID
+      FROM DietitianRequests
+      WHERE RequestID = @rid AND Durum = N'pending'
+    `);
+  const row = pending.recordset[0];
+  if (!row) return null;
+
   const result = await pool
     .request()
     .input("rid", sql.Int, Number(requestId))
     .query(`
-      UPDATE DietitianRequests SET Durum = N'rejected' OUTPUT INSERTED.RequestID WHERE RequestID = @rid AND Durum = N'pending'
+      UPDATE DietitianRequests SET Durum = N'rejected' WHERE RequestID = @rid AND Durum = N'pending'
     `);
-  return result.recordset.length ? { id: requestId } : null;
+  if (!(result.rowsAffected?.[0] > 0)) return null;
+
+  await insertNotification({
+    userId: row.DanisanUserID,
+    title: "Talep reddedildi",
+    message: "Diyetisyen atama talebiniz reddedildi.",
+    notificationType: "request_rejected",
+    relatedEntityType: "DietitianRequest",
+    relatedEntityId: Number(requestId),
+  });
+  return { id: requestId };
 }
 
 export async function createRequest(danisanUserId, diyetisyenUserId) {
   const pool = await getPool();
-  const did = await dietitianPkForUser(pool, diyetisyenUserId);
-  if (did == null) return null;
+  const duid = Number(diyetisyenUserId);
+  const dietCheck = await pool
+    .request()
+    .input("uid", sql.Int, duid)
+    .query(`SELECT 1 AS x FROM Dietitians WHERE UserID = @uid`);
+  if (!dietCheck.recordset.length) return null;
 
   const ures = await pool
     .request()
@@ -535,17 +568,28 @@ export async function createRequest(danisanUserId, diyetisyenUserId) {
   const ins = await pool
     .request()
     .input("danisanUid", sql.Int, Number(danisanUserId))
-    .input("did", sql.Int, did)
+    .input("duid", sql.Int, duid)
     .query(`
-      INSERT INTO DietitianRequests (DanisanUserID, DietitianID, Talep, Durum)
-      OUTPUT INSERTED.RequestID, INSERTED.Tarih
-      VALUES (@danisanUid, @did, N'Diyetisyen atanma isteği', N'pending')
+      INSERT INTO DietitianRequests (DanisanUserID, DietitianUserID, Talep, Durum)
+      VALUES (@danisanUid, @duid, N'Diyetisyen atanma isteği', N'pending');
+      SELECT RequestID, Tarih
+      FROM DietitianRequests
+      WHERE RequestID = CAST(SCOPE_IDENTITY() AS INT);
     `);
   const out = ins.recordset[0];
+  if (!out) return null;
+  await insertNotification({
+    userId: duid,
+    title: "Yeni talep",
+    message: `${u.FullName ?? "Danışan"} diyetisyen atama talebi gönderdi.`,
+    notificationType: "request_pending",
+    relatedEntityType: "DietitianRequest",
+    relatedEntityId: out.RequestID,
+  });
   return {
     id: out.RequestID,
     danisanId: danisanUserId,
-    diyetisyenId: Number(diyetisyenUserId),
+    diyetisyenId: duid,
     danisanAdi: u.FullName ?? "",
     talep: "Diyetisyen atanma isteği",
     tarih: fmtDate(out.Tarih),
@@ -708,6 +752,21 @@ export async function insertDailyMealForClientUser(clientUserId, payload) {
   const row = ins.recordset[0];
   if (!row) return null;
   const dec = decodeDailyTrackingNotes(row.Notes);
+  const client = await getUserById(uid);
+  if (client?.diyetisyenId) {
+    const label =
+      dec.kind === "activity"
+        ? `Aktivite: ${dec.aktivite}`
+        : `Öğün: ${dec.besin || dec.ogun}`;
+    await insertNotification({
+      userId: client.diyetisyenId,
+      title: "Yeni günlük kayıt",
+      message: `${client.fullName ?? "Danışan"} — ${label}`,
+      notificationType: "daily_tracking_added",
+      relatedEntityType: "DailyTracking",
+      relatedEntityId: row.TrackingID,
+    });
+  }
   if (dec.kind === "activity") {
     return {
       id: row.TrackingID,
@@ -762,9 +821,8 @@ export async function listDailyTrackingForDietitianUser(diyetisyenUserId, range 
     SELECT dt.TrackingID, dt.RecordDate, dt.Notes, u.FullName AS DanisanAdi
     FROM DailyTracking dt
     INNER JOIN Clients c ON c.ClientID = dt.ClientID
-    INNER JOIN Dietitians di ON di.DietitianID = c.DietitianID AND di.UserID = @did
     INNER JOIN Users u ON u.UserID = c.UserID
-    WHERE 1=1 ${dateClause}
+    WHERE c.DietitianUserID = @did ${dateClause}
     ORDER BY dt.RecordDate DESC, dt.TrackingID DESC
   `);
 
@@ -823,12 +881,14 @@ export async function getWeeklyReportSummaryForClientUser(clientUserId, opts = {
     return t >= fromStr && t <= toStr;
   });
   const user = await getUserById(clientUserId);
+  const suOrtalama = await getWaterAverageForClientUser(clientUserId, fromStr, toStr);
   const core = buildWeeklyReportSummary({
     entries,
     measurements,
     profileKilo: user?.kilo,
     profileHedef: user?.hedef,
     daysWindow,
+    suOrtalama,
   });
   return {
     ...core,
@@ -836,4 +896,197 @@ export async function getWeeklyReportSummaryForClientUser(clientUserId, opts = {
     periodTo: toStr,
     days: daysWindow,
   };
+}
+
+async function clientIdForUser(pool, clientUserId) {
+  const r = await pool
+    .request()
+    .input("uid", sql.Int, Number(clientUserId))
+    .query(`SELECT ClientID FROM Clients WHERE UserID = @uid`);
+  return r.recordset[0]?.ClientID ?? null;
+}
+
+function fmtDateTime(v) {
+  if (!v) return "";
+  if (v instanceof Date) {
+    return v.toLocaleString("tr-TR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+  return String(v);
+}
+
+function mapNotificationRow(row) {
+  const type = String(row.NotificationType ?? "").toLowerCase();
+  const kritik =
+    type.includes("critical") ||
+    type.includes("kritik") ||
+    type === "measurement_alert";
+  const mesaj = row.Title
+    ? `${row.Title}: ${row.Message ?? ""}`
+    : String(row.Message ?? "");
+  return {
+    id: row.NotificationID,
+    mesaj,
+    saat: fmtDateTime(row.CreatedAt),
+    tur: kritik ? "kritik" : "normal",
+    isRead: Boolean(row.IsRead),
+    notificationType: row.NotificationType ?? "",
+    createdAt:
+      row.CreatedAt instanceof Date
+        ? row.CreatedAt.toISOString()
+        : row.CreatedAt,
+  };
+}
+
+export async function insertNotification({
+  userId,
+  title,
+  message,
+  notificationType,
+  relatedEntityType = null,
+  relatedEntityId = null,
+}) {
+  const pool = await getPool();
+  await pool
+    .request()
+    .input("uid", sql.Int, Number(userId))
+    .input("title", sql.NVarChar(120), String(title ?? "").slice(0, 120))
+    .input("message", sql.NVarChar(sql.MAX), String(message ?? ""))
+    .input("type", sql.NVarChar(50), String(notificationType ?? "general").slice(0, 50))
+    .input("relType", sql.NVarChar(50), relatedEntityType)
+    .input("relId", sql.BigInt, relatedEntityId != null ? Number(relatedEntityId) : null)
+    .query(`
+      INSERT INTO Notifications (UserID, Title, Message, NotificationType, RelatedEntityType, RelatedEntityID)
+      VALUES (@uid, @title, @message, @type, @relType, @relId)
+    `);
+}
+
+export async function listNotificationsForUser(userId, limit = 50) {
+  const pool = await getPool();
+  const lim = Math.min(Math.max(Number(limit) || 50, 1), 200);
+  const result = await pool
+    .request()
+    .input("uid", sql.Int, Number(userId))
+    .input("lim", sql.Int, lim)
+    .query(`
+      SELECT TOP (@lim)
+        NotificationID, UserID, Title, Message, NotificationType,
+        IsRead, RelatedEntityType, RelatedEntityID, CreatedAt, ReadAt
+      FROM Notifications
+      WHERE UserID = @uid
+      ORDER BY CreatedAt DESC, NotificationID DESC
+    `);
+  return result.recordset.map(mapNotificationRow);
+}
+
+export async function markNotificationRead(userId, notificationId) {
+  const pool = await getPool();
+  const result = await pool
+    .request()
+    .input("uid", sql.Int, Number(userId))
+    .input("nid", sql.BigInt, Number(notificationId))
+    .query(`
+      UPDATE Notifications
+      SET IsRead = 1, ReadAt = SYSUTCDATETIME()
+      OUTPUT INSERTED.NotificationID
+      WHERE NotificationID = @nid AND UserID = @uid
+    `);
+  return result.recordset.length > 0;
+}
+
+export async function getWaterTrackingForClientUser(clientUserId, recordDate) {
+  const pool = await getPool();
+  const clientId = await clientIdForUser(pool, clientUserId);
+  if (clientId == null) return null;
+
+  const tarih =
+    typeof recordDate === "string" && recordDate.trim()
+      ? recordDate.trim().slice(0, 10)
+      : fmtDate(new Date());
+  const rd = new Date(`${tarih}T12:00:00`);
+
+  const result = await pool
+    .request()
+    .input("cid", sql.Int, Number(clientId))
+    .input("rd", sql.Date, rd)
+    .query(`
+      SELECT TargetGlasses, ConsumedGlasses, RecordDate
+      FROM WaterTracking
+      WHERE ClientID = @cid AND RecordDate = @rd
+    `);
+
+  if (result.recordset[0]) {
+    const row = result.recordset[0];
+    return {
+      icilen: Number(row.ConsumedGlasses) || 0,
+      hedef: Number(row.TargetGlasses) || 8,
+      tarih: fmtDate(row.RecordDate),
+    };
+  }
+  return { icilen: 0, hedef: 8, tarih };
+}
+
+export async function upsertWaterTrackingForClientUser(
+  clientUserId,
+  { consumedGlasses, targetGlasses, recordDate }
+) {
+  const pool = await getPool();
+  const clientId = await clientIdForUser(pool, clientUserId);
+  if (clientId == null) return null;
+
+  const tarih =
+    typeof recordDate === "string" && recordDate.trim()
+      ? recordDate.trim().slice(0, 10)
+      : fmtDate(new Date());
+  const rd = new Date(`${tarih}T12:00:00`);
+  const consumed = Math.max(0, Math.min(99, Number(consumedGlasses) || 0));
+  const target = Math.max(1, Math.min(30, Number(targetGlasses) || 8));
+
+  await pool
+    .request()
+    .input("cid", sql.Int, Number(clientId))
+    .input("rd", sql.Date, rd)
+    .input("target", sql.Int, target)
+    .input("consumed", sql.Int, consumed)
+    .query(`
+      MERGE WaterTracking AS t
+      USING (SELECT @cid AS ClientID, @rd AS RecordDate) AS s
+      ON t.ClientID = s.ClientID AND t.RecordDate = s.RecordDate
+      WHEN MATCHED THEN
+        UPDATE SET
+          ConsumedGlasses = @consumed,
+          TargetGlasses = @target,
+          UpdatedAt = SYSUTCDATETIME()
+      WHEN NOT MATCHED THEN
+        INSERT (ClientID, RecordDate, TargetGlasses, ConsumedGlasses)
+        VALUES (@cid, @rd, @target, @consumed);
+    `);
+
+  return getWaterTrackingForClientUser(clientUserId, tarih);
+}
+
+export async function getWaterAverageForClientUser(clientUserId, fromStr, toStr) {
+  const pool = await getPool();
+  const clientId = await clientIdForUser(pool, clientUserId);
+  if (clientId == null) return null;
+
+  const result = await pool
+    .request()
+    .input("cid", sql.Int, Number(clientId))
+    .input("from", sql.Date, new Date(`${fromStr}T12:00:00`))
+    .input("to", sql.Date, new Date(`${toStr}T12:00:00`))
+    .query(`
+      SELECT AVG(CAST(ConsumedGlasses AS FLOAT)) AS avgGlasses
+      FROM WaterTracking
+      WHERE ClientID = @cid AND RecordDate >= @from AND RecordDate <= @to
+    `);
+
+  const avg = result.recordset[0]?.avgGlasses;
+  if (avg == null || Number.isNaN(Number(avg))) return null;
+  return Math.round(Number(avg) * 10) / 10;
 }

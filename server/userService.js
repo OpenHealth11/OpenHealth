@@ -151,3 +151,27 @@ export async function getWeeklyReportSummaryForClientUser(userId, opts) {
     ? sqlRepo.getWeeklyReportSummaryForClientUser(userId, opts)
     : j(jsonStore.getWeeklyReportSummaryForClientUser(userId, opts));
 }
+
+export async function listNotificationsForUser(userId, limit) {
+  return useSqlUsers()
+    ? sqlRepo.listNotificationsForUser(userId, limit)
+    : j([]);
+}
+
+export async function markNotificationRead(userId, notificationId) {
+  return useSqlUsers()
+    ? sqlRepo.markNotificationRead(userId, notificationId)
+    : j(false);
+}
+
+export async function getWaterTrackingForClientUser(userId, recordDate) {
+  return useSqlUsers()
+    ? sqlRepo.getWaterTrackingForClientUser(userId, recordDate)
+    : j({ icilen: 0, hedef: 8, tarih: "" });
+}
+
+export async function upsertWaterTrackingForClientUser(userId, payload) {
+  return useSqlUsers()
+    ? sqlRepo.upsertWaterTrackingForClientUser(userId, payload)
+    : j(payload);
+}

@@ -1,6 +1,6 @@
 /**
  * Günlük takip + ölçümlerden haftalık rapor özeti (saf fonksiyon).
- * Su ortalaması: şema yok — API null döner; istemci yerel su sayacı ile tamamlar.
+ * Su ortalaması: WaterTracking tablosundan (opsiyonel) gelir.
  */
 
 export function buildWeeklyReportSummary({
@@ -9,6 +9,7 @@ export function buildWeeklyReportSummary({
   profileKilo,
   profileHedef,
   daysWindow,
+  suOrtalama = null,
 }) {
   const meals = (entries || []).filter((e) => !e.kind || e.kind === "meal");
 
@@ -55,7 +56,7 @@ export function buildWeeklyReportSummary({
 
   return {
     ortalamaKalori,
-    suOrtalama: null,
+    suOrtalama,
     kiloDegisim,
     uyumOrani,
     kaynak: "server",
