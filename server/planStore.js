@@ -116,6 +116,17 @@ export async function getPlanByDietitian(dietitianUserId, planId) {
   return plans[0] ?? null;
 }
 
+export async function getPlanByClient(clientUserId) {
+  const plans = await fetchPlans(
+    "p.ClientUserID = @clientUserId",
+    (request) => {
+      request.input("clientUserId", sql.Int, Number(clientUserId));
+    }
+  );
+
+  return plans[0] ?? null;
+}
+
 export async function createPlanForDietitian(dietitianUserId, payload) {
   const check = await assertClient(payload.clientUserId);
   if (!check.ok) return check;

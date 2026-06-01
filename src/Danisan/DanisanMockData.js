@@ -19,6 +19,8 @@ export const initialDanisanData = {
   aktiviteNotu: "",
 },
 
+plan: null,
+
   meals: [
     {
       id: 1,

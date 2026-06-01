@@ -25,6 +25,7 @@ import {
 import {
   listPlansByDietitian,
   getPlanByDietitian,
+  getPlanByClient,
   createPlanForDietitian,
   updatePlanForDietitian,
   addPlanOgun,
@@ -634,6 +635,36 @@ app.get("/api/diyetisyen/danisanlar", async (req, res) => {
   const u = await requireDiyetisyen(req, res);
   if (!u) return;
   return res.json({ danisanlar: await listApprovedDanisanlar() });
+});
+
+app.get("/api/danisan/plan", async (req, res) => {
+  try {
+    const user = await getUserFromAuthHeader(req);
+
+    if (!user) {
+      return res.status(401).json({
+        error: "Yetkisiz.",
+      });
+    }
+
+    if (user.role !== "danisan") {
+      return res.status(403).json({
+        error: "Bu işlem sadece danışan tarafından yapılabilir.",
+      });
+    }
+
+    const plan = await getPlanByClient(user.id);
+
+    return res.json({
+      plan,
+    });
+  } catch (e) {
+    console.error("[danisan-plan-get]", e);
+
+    return res.status(500).json({
+      error: "Sunucu hatası.",
+    });
+  }
 });
 
 /*  app.get("/api/diyetisyen/plans", async (req, res) => {

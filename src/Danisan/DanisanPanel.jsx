@@ -60,77 +60,147 @@ export default function DanisanPanel() {
     fetchProfile();
   }, []);
 
-  useEffect(() => {
-  async function loadDailyTracking() {
-    const token = localStorage.getItem("token");
-    if (!token) return;
+    useEffect(() => {
+    async function loadDailyTracking() {
+      const token = localStorage.getItem("token");
+      if (!token) return;
 
-    try {
-      const res = await fetch("/api/daily-tracking", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      try {
+        const res = await fetch("/api/daily-tracking", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
 
-      const result = await res.json();
+        const result = await res.json();
 
-      if (!res.ok) {
-        console.error(result.error);
-        return;
-      }
-       
-      const records = result.records || [];
-      const waterRecord = records.find(
-        (r) => r.Su !== null && r.Su !== undefined
-      );
-      const activityRecord = records.find(
-        (r) => r.AktiviteTuru !== null && r.AktiviteTuru !== undefined
-      );
+        if (!res.ok) {
+          console.error(result.error);
+          return;
+        }
 
-      setData((prev) => ({
-        ...prev,
-        water: waterRecord
-          ? {
-              ...prev.water,
-              icilen: Number(waterRecord.Su || 0),
-              hedef: Number(waterRecord.SuHedefi || prev.water.hedef),
-            }
-          : prev.water,
+        const records = result.records || [];
+
+        const waterRecord = records.find(
+          (r) => r.Su !== null && r.Su !== undefined
+        );
+
+        const activityRecord = records.find(
+          (r) => r.AktiviteTuru !== null && r.AktiviteTuru !== undefined
+        );
+
+        setData((prev) => ({
+          ...prev,
+          water: waterRecord
+            ? {
+                ...prev.water,
+                icilen: Number(waterRecord.Su || 0),
+                hedef: Number(waterRecord.SuHedefi || prev.water.hedef),
+              }
+            : prev.water,
+
           activity: activityRecord
-             ? {
-                 aktiviteTuru: activityRecord.AktiviteTuru || "",
-                 aktiviteSuresi: activityRecord.AktiviteSuresi || "",
-                 aktiviteNotu: activityRecord.AktiviteNotu || "",
-                }
-          : prev.activity,
-                  
+            ? {
+                aktiviteTuru: activityRecord.AktiviteTuru || "",
+                aktiviteSuresi: activityRecord.AktiviteSuresi || "",
+                aktiviteNotu: activityRecord.AktiviteNotu || "",
+              }
+            : prev.activity,
+
           gunlukKayitlar: records.map((r) => {
-          const parts = (r.Notes || "").split(" - ");
+            const parts = (r.Notes || "").split(" - ");
 
-          return {
-            id: r.TrackingID,
-            besin: parts[0] || "",
-            kalori: Number((parts[1] || "0").replace(" kcal", "")),
-            durum: r.Durum,
-            dietitianNote: r.DietitianNote,
-            su: r.Su,
-            suHedefi: r.SuHedefi,
-            aktiviteTuru: r.AktiviteTuru,
-            aktiviteSuresi: r.AktiviteSuresi,
-            aktiviteNotu: r.AktiviteNotu,
-          };
-        }),
-      }));
-
-     
-    } catch (err) {
-      console.error("Daily tracking yüklenemedi", err);
+            return {
+              id: r.TrackingID,
+              besin: parts[0] || "",
+              kalori: Number((parts[1] || "0").replace(" kcal", "")),
+              durum: r.Durum,
+              dietitianNote: r.DietitianNote,
+              su: r.Su,
+              suHedefi: r.SuHedefi,
+              aktiviteTuru: r.AktiviteTuru,
+              aktiviteSuresi: r.AktiviteSuresi,
+              aktiviteNotu: r.AktiviteNotu,
+            };
+          }),
+        }));
+      } catch (err) {
+        console.error("Daily tracking yüklenemedi", err);
+      }
     }
-  }
 
-  loadDailyTracking();
-}, []);
+    loadDailyTracking();
+  }, []);
 
+  useEffect(() => {
+    async function loadClientPlan() {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+
+      try {
+        const res = await fetch("/api/danisan/plan", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        const result = await res.json();
+
+        if (!res.ok) {
+          console.error(result.error || "Plan yüklenemedi.");
+          return;
+        }
+
+        if (!result.plan) {
+          setData((prev) => ({
+            ...prev,
+            meals: [],
+            plan: null,
+          }));
+          return;
+        }
+
+        const parsedMeals = [];
+
+        for (const row of result.plan.ogunler || []) {
+          try {
+            const parsed = JSON.parse(row.ogunler);
+
+            if (Array.isArray(parsed.meals)) {
+              parsed.meals.forEach((meal) => {
+                parsedMeals.push({
+                  id: `${row.planOgunId}-${meal.id}`,
+                  ogun: meal.ogunAdi || "Öğün",
+                  saat: meal.saat || "-",
+                  yemek: meal.icerik || "",
+                  kalori: meal.kalori || 0,
+                });
+              });
+            }
+          } catch {
+            parsedMeals.push({
+              id: row.planOgunId,
+              ogun: "Öğün",
+              saat: "-",
+              yemek: row.ogunler || "",
+              kalori: 0,
+            });
+          }
+        }
+
+        setData((prev) => ({
+          ...prev,
+          plan: result.plan,
+          meals: parsedMeals,
+        }));
+      } catch (err) {
+        console.error("Danışan planı yüklenemedi", err);
+      }
+    }
+
+    loadClientPlan();
+  }, []);
+   
     const saveWaterToBackend = async (newWater) => {
     const token = localStorage.getItem("token");
 
