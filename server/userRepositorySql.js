@@ -214,7 +214,9 @@ export async function getDailyTracking(userId) {
       Notes,
       RecordDate,
       Durum,
-      DietitianNote
+      DietitianNote,
+      Su,
+      SuHedefi
       FROM DailyTracking
       WHERE ClientID = @userId
       ORDER BY RecordDate DESC, TrackingID DESC
@@ -250,6 +252,61 @@ export async function createDailyTracking(userId, notes, recordDate) {
   return result.recordset[0];
 }
 
+export async function upsertWaterTracking(userId, recordDate, su, suHedefi) {
+  const pool = await getPool();
+
+  const result = await pool
+    .request()
+    .input("userId", sql.Int, userId)
+    .input("recordDate", sql.Date, recordDate)
+    .input("su", sql.Decimal(5, 2), su)
+    .input("suHedefi", sql.Decimal(5, 2), suHedefi)
+    .query(`
+      IF EXISTS (
+        SELECT 1
+        FROM DailyTracking
+        WHERE ClientID = @userId
+          AND CAST(RecordDate AS DATE) = @recordDate
+      )
+      BEGIN
+        UPDATE DailyTracking
+        SET
+          Su = @su,
+          SuHedefi = @suHedefi
+        WHERE ClientID = @userId
+          AND CAST(RecordDate AS DATE) = @recordDate;
+
+        SELECT TOP 1 *
+        FROM DailyTracking
+        WHERE ClientID = @userId
+          AND CAST(RecordDate AS DATE) = @recordDate
+        ORDER BY TrackingID DESC;
+      END
+      ELSE
+      BEGIN
+        INSERT INTO DailyTracking
+        (
+          ClientID,
+          Notes,
+          RecordDate,
+          Su,
+          SuHedefi
+        )
+        OUTPUT INSERTED.*
+        VALUES
+        (
+          @userId,
+          NULL,
+          @recordDate,
+          @su,
+          @suHedefi
+        );
+      END
+    `);
+
+  return result.recordset[0];
+}
+
 export async function getDailyTrackingForDietitian(dietitianUserId) {
   const pool = await getPool();
 
@@ -263,6 +320,8 @@ export async function getDailyTrackingForDietitian(dietitianUserId) {
         dt.Notes,
         dt.RecordDate,
         dt.Durum,
+        dt.Su,
+        dt.SuHedefi,
         dt.DietitianNote
       FROM DailyTracking dt
       INNER JOIN Clients c

@@ -38,6 +38,7 @@ import {
   getDietitianUserIdByClientUserId,
   getDailyTracking,
   createDailyTracking,
+  upsertWaterTracking,
   getDailyTrackingForDietitian,
   createDailyTrackingFeedback,
   getDailyTrackingFeedback,
@@ -859,6 +860,76 @@ app.post("/api/daily-tracking", async (req, res) => {
     });
   } catch (e) {
     console.error("[daily-tracking-create]", e);
+
+    return res.status(500).json({
+      error: "Sunucu hatası.",
+    });
+  }
+});
+
+app.put("/api/daily-tracking/water", async (req, res) => {
+  try {
+    const user = await getUserFromAuthHeader(req);
+
+    if (!user) {
+      return res.status(401).json({
+        error: "Yetkisiz.",
+      });
+    }
+
+    if (user.role !== "danisan") {
+      return res.status(403).json({
+        error: "Bu işlem sadece danışan tarafından yapılabilir.",
+      });
+    }
+
+    const { recordDate, su, suHedefi } = req.body ?? {};
+
+    const parsedSu = su === "" || su === null || su === undefined ? null : Number(su);
+    const parsedSuHedefi =
+      suHedefi === "" || suHedefi === null || suHedefi === undefined
+        ? null
+        : Number(suHedefi);
+
+    if (parsedSu !== null && Number.isNaN(parsedSu)) {
+      return res.status(400).json({
+        error: "Su tüketimi sayısal bir değer olmalıdır.",
+      });
+    }
+
+    if (parsedSuHedefi !== null && Number.isNaN(parsedSuHedefi)) {
+      return res.status(400).json({
+        error: "Su hedefi sayısal bir değer olmalıdır.",
+      });
+    }
+
+    if (parsedSu !== null && parsedSu < 0) {
+      return res.status(400).json({
+        error: "Su tüketimi negatif olamaz.",
+      });
+    }
+
+    if (parsedSuHedefi !== null && parsedSuHedefi <= 0) {
+      return res.status(400).json({
+        error: "Su hedefi 0 veya negatif olamaz.",
+      });
+    }
+
+    const dateToUse = recordDate || new Date();
+
+    const record = await upsertWaterTracking(
+      user.id,
+      dateToUse,
+      parsedSu,
+      parsedSuHedefi
+    );
+
+    return res.json({
+      message: "Su tüketimi başarıyla kaydedildi.",
+      record,
+    });
+  } catch (e) {
+    console.error("[daily-tracking-water-upsert]", e);
 
     return res.status(500).json({
       error: "Sunucu hatası.",
