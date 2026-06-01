@@ -84,6 +84,36 @@ function bloodReportPaths(userId) {
   };
 }
 
+function getBloodReportInfoForUser(userId, downloadUrl) {
+  const paths = bloodReportPaths(userId);
+
+  if (!fs.existsSync(paths.pdf)) {
+    return {
+      exists: false,
+      fileName: "",
+      uploadedAt: "",
+      downloadUrl: "",
+    };
+  }
+
+  let meta = {};
+
+  if (fs.existsSync(paths.meta)) {
+    try {
+      meta = JSON.parse(fs.readFileSync(paths.meta, "utf8"));
+    } catch {
+      meta = {};
+    }
+  }
+
+  return {
+    exists: true,
+    fileName: meta.originalName || "kan-tetkik-raporu.pdf",
+    uploadedAt: meta.uploadedAt || "",
+    downloadUrl,
+  };
+}
+
 const bloodReportUpload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, BLOOD_REPORT_DIR),
@@ -1038,21 +1068,73 @@ app.get("/api/diyetisyen/clients", async (req, res) => {
   }
 
   const clients = await getClientsByDiyetisyenId(user.id);
-  const safeClients = clients.map((u) => ({
-    id: u.id,
-    fullName: u.fullName,
-    yas: u.yas ?? "",
-    boy: u.boy ?? "",
-    kilo: u.kilo ?? "",
-    hedef: u.hedef ?? "",
-    sonGorusme: u.sonGorusme ?? "",
-    durum: u.durum ?? "Pasif",
-    alerji: u.alerji ?? "",
-    hastalik: u.hastalik ?? "",
-    ilaclar: u.kullanilanIlaclar ?? "",
-  }));
-
+ const safeClients = clients.map((u) => ({
+  id: u.id,
+  fullName: u.fullName,
+  yas: u.yas ?? "",
+  boy: u.boy ?? "",
+  kilo: u.kilo ?? "",
+  hedef: u.hedef ?? "",
+  sonGorusme: u.sonGorusme ?? "",
+  durum: u.durum ?? "Pasif",
+  alerji: u.alerji ?? "",
+  hastalik: u.hastalik ?? "",
+  ilaclar: u.kullanilanIlaclar ?? "",
+  bloodReport: getBloodReportInfoForUser(
+    u.id,
+    `/api/diyetisyen/clients/${u.id}/blood-report/download`
+  ),
+}));
   return res.json({ clients: safeClients });
+});
+
+app.get("/api/diyetisyen/clients/:clientId/blood-report/download", async (req, res) => {
+  try {
+    const user = await getUserFromAuthHeader(req);
+
+    if (!user) {
+      return res.status(401).json({ error: "Yetkisiz." });
+    }
+
+    if (user.role !== "diyetisyen") {
+      return res.status(403).json({ error: "Bu işlem sadece diyetisyenler içindir." });
+    }
+
+    const clientId = Number(req.params.clientId);
+
+    if (!Number.isFinite(clientId) || clientId <= 0) {
+      return res.status(400).json({ error: "Geçersiz danışan." });
+    }
+
+    const clients = await getClientsByDiyetisyenId(user.id);
+    const canAccess = clients.some((client) => Number(client.id) === clientId);
+
+    if (!canAccess) {
+      return res.status(403).json({ error: "Bu danışanın raporuna erişim yetkiniz yok." });
+    }
+
+    const paths = bloodReportPaths(clientId);
+
+    if (!fs.existsSync(paths.pdf)) {
+      return res.status(404).json({ error: "Kan raporu bulunamadı." });
+    }
+
+    let originalName = "kan-tetkik-raporu.pdf";
+
+    if (fs.existsSync(paths.meta)) {
+      try {
+        const meta = JSON.parse(fs.readFileSync(paths.meta, "utf8"));
+        originalName = meta.originalName || originalName;
+      } catch {
+        // meta okunamazsa varsayılan ad kullanılır
+      }
+    }
+
+    return res.download(paths.pdf, originalName);
+  } catch (e) {
+    console.error("[dietitian-blood-report-download]", e);
+    return res.status(500).json({ error: "Kan raporu indirilemedi." });
+  }
 });
 
 app.get("/api/diyetisyen/requests", async (req, res) => {

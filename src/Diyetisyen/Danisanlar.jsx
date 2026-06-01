@@ -45,14 +45,44 @@ function Danisanlar() {
     return (kilo / (metre * metre)).toFixed(1);
   }
 
-  function kanDosyasiAc(dosyaUrl) {
-    if (!dosyaUrl) {
-      alert("Bu danışanın yüklenmiş kan değeri dosyası yok.");
+ async function kanDosyasiAc(dosyaUrl) {
+  if (!dosyaUrl) {
+    alert("Bu danışanın yüklenmiş kan değeri dosyası yok.");
+    return;
+  }
+
+  const token = localStorage.getItem("token");
+
+  if (!token) {
+    alert("Oturum bulunamadı. Lütfen tekrar giriş yapın.");
+    return;
+  }
+
+  try {
+    const res = await fetch(dosyaUrl, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error || "Kan raporu indirilemedi.");
       return;
     }
 
-    window.open(dosyaUrl, "_blank");
+    const blob = await res.blob();
+    const fileUrl = URL.createObjectURL(blob);
+
+    window.open(fileUrl, "_blank");
+
+    setTimeout(() => {
+      URL.revokeObjectURL(fileUrl);
+    }, 60_000);
+  } catch {
+    alert("Kan raporu açılırken sunucuya bağlanılamadı.");
   }
+}
 
   const liste = Array.isArray(danisanlar) ? danisanlar : [];
   const filtreliDanisanlar = liste.filter((item) =>
@@ -155,19 +185,20 @@ function Danisanlar() {
                 </td>
 
                 <td>
-                  <button
-                    type="button"
-                    className="dy-file-btn"
-                    onClick={() =>
-                      kanDosyasiAc(
-                        item.kanDegerleriDosyaUrl || item.kanDegerleriDosya
-                      )
-                    }
-                  >
-                    <FiFileText />
-                    Aç
-                  </button>
-                </td>
+  {item.bloodReport?.exists ? (
+    <button
+      type="button"
+      className="dy-file-btn"
+      onClick={() => kanDosyasiAc(item.bloodReport.downloadUrl)}
+      title={item.bloodReport.fileName}
+    >
+      <FiFileText />
+      İndir
+    </button>
+  ) : (
+    <span className="dy-mini-badge gray">Yok</span>
+  )}
+</td>
 
                 <td>
                   <span
@@ -264,24 +295,19 @@ function Danisanlar() {
               <strong>Kan Değerleri</strong>
               <br />
 
-              {secilenDanisan.kanDegerleriDosyaUrl ||
-              secilenDanisan.kanDegerleriDosya ? (
-                <button
-                  type="button"
-                  className="dy-file-btn"
-                  onClick={() =>
-                    kanDosyasiAc(
-                      secilenDanisan.kanDegerleriDosyaUrl ||
-                        secilenDanisan.kanDegerleriDosya
-                    )
-                  }
-                >
-                  <FiFileText />
-                  Dosyayı Aç
-                </button>
-              ) : (
-                "Dosya yüklenmemiş"
-              )}
+              {secilenDanisan.bloodReport?.exists ? (
+  <button
+    type="button"
+    className="dy-file-btn"
+    onClick={() => kanDosyasiAc(secilenDanisan.bloodReport.downloadUrl)}
+    title={secilenDanisan.bloodReport.fileName}
+  >
+    <FiFileText />
+    Dosyayı İndir
+  </button>
+) : (
+  "Dosya yüklenmemiş"
+)}
             </p>
           </div>
         </div>
