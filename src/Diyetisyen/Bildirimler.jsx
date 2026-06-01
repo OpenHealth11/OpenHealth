@@ -28,8 +28,8 @@ function Bildirimler({ bildirimler: propsBildirimler = [] }) {
             ? data.notifications
             : [];
           if (!cancelled) {
-            setListe(fromApi.length > 0 ? fromApi : propsSafe);
-          }
+             setListe(fromApi);
+           }
           return;
         }
       } catch (err) {
@@ -48,6 +48,38 @@ function Bildirimler({ bildirimler: propsBildirimler = [] }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ilk yüklemede API dene, yoksa prop mock
   }, []);
+
+  async function bildirimiOkunduYap(id) {
+  const token = localStorage.getItem("token");
+
+  if (!token) {
+    alert("Oturum bulunamadı.");
+    return;
+  }
+
+  try {
+    const res = await fetch(apiUrl(`/api/notifications/${id}/read`), {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error || "Bildirim güncellenemedi.");
+      return;
+    }
+
+    setListe((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, isRead: true, okundu: true } : item
+      )
+    );
+  } catch {
+    alert("Sunucuya bağlanılamadı.");
+  }
+}
 
   return (
     <div className="dy-page">
@@ -75,6 +107,17 @@ function Bildirimler({ bildirimler: propsBildirimler = [] }) {
                 {item.tur === "kritik" && (
                   <span className="dy-critical-badge">Kritik</span>
                 )}
+                {!(item.isRead || item.okundu) ? (
+  <button
+    type="button"
+    className="dy-secondary-btn"
+    onClick={() => bildirimiOkunduYap(item.id)}
+  >
+    Okundu
+  </button>
+) : (
+  <span className="dy-mini-badge gray">Okundu</span>
+)}
               </div>
             ))}
           </div>
