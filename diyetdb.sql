@@ -578,6 +578,29 @@ BEGIN
 END
 GO
 
+IF OBJECT_ID(N'dbo.DailyTrackingFeedback', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.DailyTrackingFeedback (
+        FeedbackID INT IDENTITY(1,1) PRIMARY KEY,
+        TrackingID INT NOT NULL,
+        DietitianUserID INT NOT NULL,
+        Comment NVARCHAR(MAX) NOT NULL,
+        CreatedAt DATETIME2 NOT NULL
+            CONSTRAINT DF_DailyTrackingFeedback_CreatedAt
+            DEFAULT SYSDATETIME(),
+
+        CONSTRAINT FK_DailyTrackingFeedback_DailyTracking
+            FOREIGN KEY (TrackingID)
+            REFERENCES dbo.DailyTracking(TrackingID)
+            ON DELETE CASCADE,
+
+        CONSTRAINT FK_DailyTrackingFeedback_Users
+            FOREIGN KEY (DietitianUserID)
+            REFERENCES dbo.Users(UserID)
+    );
+END
+GO
+
 IF COL_LENGTH(N'dbo.DailyTracking', N'SuHedefi') IS NULL
 BEGIN
     ALTER TABLE dbo.DailyTracking ADD SuHedefi INT NULL;

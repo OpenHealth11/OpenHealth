@@ -39,6 +39,8 @@ import {
   getDailyTracking,
   createDailyTracking,
   getDailyTrackingForDietitian,
+  createDailyTrackingFeedback,
+  getDailyTrackingFeedback,
 } from "./userRepositorySql.js";
 
 if (!process.env.JWT_SECRET) {
@@ -878,6 +880,69 @@ app.get("/api/diyetisyen/daily-tracking", async (req, res) => {
     });
   } catch (e) {
     console.error("[dietitian-daily-tracking]", e);
+
+    return res.status(500).json({
+      error: "Sunucu hatası.",
+    });
+  }
+});
+
+app.post(
+  "/api/diyetisyen/daily-tracking/:id/feedback",
+  async (req, res) => {
+    try {
+      const user = await requireDiyetisyen(req, res);
+
+      if (!user) {
+        return;
+      }
+
+      const { comment } = req.body ?? {};
+
+      if (!comment?.trim()) {
+        return res.status(400).json({
+          error: "Geri bildirim boş olamaz.",
+        });
+      }
+
+      const feedback = await createDailyTrackingFeedback(
+        Number(req.params.id),
+        user.id,
+        comment.trim()
+      );
+
+      return res.status(201).json({
+        feedback,
+      });
+    } catch (e) {
+      console.error("[create-feedback]", e);
+
+      return res.status(500).json({
+        error: "Sunucu hatası.",
+      });
+    }
+  }
+);
+
+app.get("/api/daily-tracking/:id/feedback", async (req, res) => {
+  try {
+    const user = await getUserFromAuthHeader(req);
+
+    if (!user) {
+      return res.status(401).json({
+        error: "Yetkisiz.",
+      });
+    }
+
+    const feedback = await getDailyTrackingFeedback(
+      Number(req.params.id)
+    );
+
+    return res.json({
+      feedback,
+    });
+  } catch (e) {
+    console.error("[get-feedback]", e);
 
     return res.status(500).json({
       error: "Sunucu hatası.",

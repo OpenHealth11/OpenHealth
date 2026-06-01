@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { FiPlus, FiTrash2, FiActivity, FiEdit3 } from "react-icons/fi";
 
 // --- GÖRSEL EŞLEŞTİRME MANTIĞI ---
@@ -70,6 +70,42 @@ const getFoodVisual = (foodName) => {
 
 function GunlukTakipPage({ kayitlar, addGunlukKayit, deleteGunlukKayit }) {
   const [form, setForm] = useState({ besin: "", kalori: "" });
+  const [feedbacks, setFeedbacks] = useState({});
+
+  useEffect(() => {
+  async function loadFeedbacks() {
+    const token = localStorage.getItem("token");
+
+    const result = {};
+
+    for (const kayit of kayitlar) {
+      try {
+        const res = await fetch(
+          `/api/daily-tracking/${kayit.id}/feedback`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (!res.ok) continue;
+
+        const body = await res.json();
+
+        result[kayit.id] = body.feedback || [];
+      } catch {
+        // ignore
+      }
+    }
+
+    setFeedbacks(result);
+  }
+
+  if (kayitlar.length > 0) {
+    loadFeedbacks();
+  }
+}, [kayitlar]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -202,6 +238,21 @@ function GunlukTakipPage({ kayitlar, addGunlukKayit, deleteGunlukKayit }) {
                     <span style={{ color: "#10b981", fontSize: "14px", fontWeight: "700" }}>
                       {item.kalori} kcal
                     </span>
+                     {feedbacks[item.id]?.length > 0 && (
+                      <div
+                      style={{
+                        marginTop: "8px",
+                        padding: "8px",
+                        backgroundColor: "#ecfeff",
+                        borderRadius: "8px",
+                        fontSize: "13px",
+                    }}
+                    >
+    <strong>💬 Diyetisyen Yorumu:</strong>
+    <br />
+    {feedbacks[item.id][0].Comment}
+  </div>
+)}        
                   </div>
                 </div>
 

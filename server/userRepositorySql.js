@@ -273,3 +273,55 @@ export async function getDailyTrackingForDietitian(dietitianUserId) {
 
   return result.recordset;
 }
+
+export async function createDailyTrackingFeedback(
+  trackingId,
+  dietitianUserId,
+  comment
+) {
+  const pool = await getPool();
+
+  const result = await pool
+    .request()
+    .input("trackingId", sql.Int, trackingId)
+    .input("dietitianUserId", sql.Int, dietitianUserId)
+    .input("comment", sql.NVarChar(sql.MAX), comment)
+    .query(`
+      INSERT INTO DailyTrackingFeedback
+      (
+        TrackingID,
+        DietitianUserID,
+        Comment
+      )
+      OUTPUT INSERTED.*
+      VALUES
+      (
+        @trackingId,
+        @dietitianUserId,
+        @comment
+      )
+    `);
+
+  return result.recordset[0];
+}
+
+export async function getDailyTrackingFeedback(trackingId) {
+  const pool = await getPool();
+
+  const result = await pool
+    .request()
+    .input("trackingId", sql.Int, trackingId)
+    .query(`
+      SELECT
+        FeedbackID,
+        TrackingID,
+        DietitianUserID,
+        Comment,
+        CreatedAt
+      FROM DailyTrackingFeedback
+      WHERE TrackingID = @trackingId
+      ORDER BY CreatedAt DESC
+    `);
+
+  return result.recordset;
+}
