@@ -249,3 +249,13 @@
     padding: 22px;
   }
 }
+.auth-success {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background-color: #ecfdf5;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+  font-weight: 700;
+  font-size: 14px;
+}
