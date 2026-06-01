@@ -39,6 +39,7 @@ import {
   getDailyTracking,
   createDailyTracking,
   upsertWaterTracking,
+  upsertActivityTracking,
   getDailyTrackingForDietitian,
   createDailyTrackingFeedback,
   getDailyTrackingFeedback,
@@ -936,6 +937,69 @@ app.put("/api/daily-tracking/water", async (req, res) => {
     });
   }
 });
+
+app.put("/api/daily-tracking/activity", async (req, res) => {
+  try {
+    const user = await getUserFromAuthHeader(req);
+
+    if (!user) {
+      return res.status(401).json({
+        error: "Yetkisiz.",
+      });
+    }
+
+    if (user.role !== "danisan") {
+      return res.status(403).json({
+        error: "Bu işlem sadece danışan tarafından yapılabilir.",
+      });
+    }
+
+    const { recordDate, aktiviteTuru, aktiviteSuresi, aktiviteNotu } =
+      req.body ?? {};
+
+    if (!aktiviteTuru || !String(aktiviteTuru).trim()) {
+      return res.status(400).json({
+        error: "Aktivite türü zorunludur.",
+      });
+    }
+
+    const parsedAktiviteSuresi = Number(aktiviteSuresi);
+
+    if (Number.isNaN(parsedAktiviteSuresi)) {
+      return res.status(400).json({
+        error: "Aktivite süresi sayısal bir değer olmalıdır.",
+      });
+    }
+
+    if (parsedAktiviteSuresi <= 0) {
+      return res.status(400).json({
+        error: "Aktivite süresi 0 veya negatif olamaz.",
+      });
+    }
+
+    const dateToUse = recordDate || new Date();
+
+    const record = await upsertActivityTracking(
+      user.id,
+      dateToUse,
+      String(aktiviteTuru).trim(),
+      parsedAktiviteSuresi,
+      aktiviteNotu ? String(aktiviteNotu).trim() : null
+    );
+
+    return res.json({
+      message: "Aktivite kaydı başarıyla kaydedildi.",
+      record,
+    });
+  } catch (e) {
+    console.error("[daily-tracking-activity-upsert]", e);
+
+    return res.status(500).json({
+      error: "Sunucu hatası.",
+    });
+  }
+});
+
 
 app.get("/api/diyetisyen/daily-tracking", async (req, res) => {
   try {

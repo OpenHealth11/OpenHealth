@@ -216,7 +216,10 @@ export async function getDailyTracking(userId) {
       Durum,
       DietitianNote,
       Su,
-      SuHedefi
+      SuHedefi,
+      AktiviteTuru,
+      AktiviteSuresi,
+      AktiviteNotu
       FROM DailyTracking
       WHERE ClientID = @userId
       ORDER BY RecordDate DESC, TrackingID DESC
@@ -307,6 +310,72 @@ export async function upsertWaterTracking(userId, recordDate, su, suHedefi) {
   return result.recordset[0];
 }
 
+
+export async function upsertActivityTracking(
+  userId,
+  recordDate,
+  aktiviteTuru,
+  aktiviteSuresi,
+  aktiviteNotu
+) {
+  const pool = await getPool();
+
+  const result = await pool
+    .request()
+    .input("userId", sql.Int, userId)
+    .input("recordDate", sql.Date, recordDate)
+    .input("aktiviteTuru", sql.NVarChar(100), aktiviteTuru)
+    .input("aktiviteSuresi", sql.Int, aktiviteSuresi)
+    .input("aktiviteNotu", sql.NVarChar(sql.MAX), aktiviteNotu)
+    .query(`
+      IF EXISTS (
+        SELECT 1
+        FROM DailyTracking
+        WHERE ClientID = @userId
+          AND CAST(RecordDate AS DATE) = @recordDate
+      )
+      BEGIN
+        UPDATE DailyTracking
+        SET
+          AktiviteTuru = @aktiviteTuru,
+          AktiviteSuresi = @aktiviteSuresi,
+          AktiviteNotu = @aktiviteNotu
+        WHERE ClientID = @userId
+          AND CAST(RecordDate AS DATE) = @recordDate;
+
+        SELECT TOP 1 *
+        FROM DailyTracking
+        WHERE ClientID = @userId
+          AND CAST(RecordDate AS DATE) = @recordDate
+        ORDER BY TrackingID DESC;
+      END
+      ELSE
+      BEGIN
+        INSERT INTO DailyTracking
+        (
+          ClientID,
+          Notes,
+          RecordDate,
+          AktiviteTuru,
+          AktiviteSuresi,
+          AktiviteNotu
+        )
+        OUTPUT INSERTED.*
+        VALUES
+        (
+          @userId,
+          NULL,
+          @recordDate,
+          @aktiviteTuru,
+          @aktiviteSuresi,
+          @aktiviteNotu
+        );
+      END
+    `);
+
+  return result.recordset[0];
+}
+
 export async function getDailyTrackingForDietitian(dietitianUserId) {
   const pool = await getPool();
 
@@ -322,6 +391,9 @@ export async function getDailyTrackingForDietitian(dietitianUserId) {
         dt.Durum,
         dt.Su,
         dt.SuHedefi,
+        dt.AktiviteTuru,
+        dt.AktiviteSuresi,
+        dt.AktiviteNotu,
         dt.DietitianNote
       FROM DailyTracking dt
       INNER JOIN Clients c

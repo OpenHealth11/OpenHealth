@@ -83,6 +83,9 @@ export default function DanisanPanel() {
       const waterRecord = records.find(
         (r) => r.Su !== null && r.Su !== undefined
       );
+      const activityRecord = records.find(
+        (r) => r.AktiviteTuru !== null && r.AktiviteTuru !== undefined
+      );
 
       setData((prev) => ({
         ...prev,
@@ -93,7 +96,15 @@ export default function DanisanPanel() {
               hedef: Number(waterRecord.SuHedefi || prev.water.hedef),
             }
           : prev.water,
-        gunlukKayitlar: records.map((r) => {
+          activity: activityRecord
+             ? {
+                 aktiviteTuru: activityRecord.AktiviteTuru || "",
+                 aktiviteSuresi: activityRecord.AktiviteSuresi || "",
+                 aktiviteNotu: activityRecord.AktiviteNotu || "",
+                }
+          : prev.activity,
+                  
+          gunlukKayitlar: records.map((r) => {
           const parts = (r.Notes || "").split(" - ");
 
           return {
@@ -104,6 +115,9 @@ export default function DanisanPanel() {
             dietitianNote: r.DietitianNote,
             su: r.Su,
             suHedefi: r.SuHedefi,
+            aktiviteTuru: r.AktiviteTuru,
+            aktiviteSuresi: r.AktiviteSuresi,
+            aktiviteNotu: r.AktiviteNotu,
           };
         }),
       }));
@@ -188,6 +202,51 @@ export default function DanisanPanel() {
       water: newWater,
     }));
   };
+
+  const addActivityTracking = async (activity) => {
+  const token = localStorage.getItem("token");
+
+  if (!token) {
+    alert("Oturum bulunamadı.");
+    return;
+  }
+
+  try {
+    const res = await fetch("/api/daily-tracking/activity", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        recordDate: new Date().toISOString().split("T")[0],
+        aktiviteTuru: activity.aktiviteTuru,
+        aktiviteSuresi: Number(activity.aktiviteSuresi),
+        aktiviteNotu: activity.aktiviteNotu,
+      }),
+    });
+
+    const result = await res.json();
+
+    if (!res.ok) {
+      alert(result.error || "Aktivite kaydı eklenemedi.");
+      return;
+    }
+
+    setData((prev) => ({
+      ...prev,
+      activity: {
+        aktiviteTuru: result.record.AktiviteTuru,
+        aktiviteSuresi: result.record.AktiviteSuresi,
+        aktiviteNotu: result.record.AktiviteNotu,
+      },
+    }));
+
+    alert("Aktivite kaydı başarıyla kaydedildi.");
+  } catch {
+    alert("Sunucuya bağlanılamadı.");
+  }
+};
 
   const addGunlukKayit = async (newItem) => {
   if (!newItem.besin.trim() || !newItem.kalori) return;
@@ -277,7 +336,16 @@ export default function DanisanPanel() {
     switch (activePage) {
       case "dashboard": return <Dashboard data={data} />;
       case "plan": return <PlanPage meals={data.meals} />;
-      case "gunluk": return <GunlukTakipPage kayitlar={data.gunlukKayitlar} addGunlukKayit={addGunlukKayit} deleteGunlukKayit={deleteGunlukKayit} />;
+      case "gunluk":
+      return (
+    <GunlukTakipPage
+      kayitlar={data.gunlukKayitlar}
+      addGunlukKayit={addGunlukKayit}
+      deleteGunlukKayit={deleteGunlukKayit}
+      activity={data.activity}
+      addActivityTracking={addActivityTracking}
+    />
+  );
       case "su": return <SuTakipPage water={data.water} addWater={addWater} removeWater={removeWater} />;
       case "takas": return <BesinTakasiPage takasOnerileri={data.takasOnerileri} />;
       case "rapor": return <RaporPage rapor={data.haftalikRapor} />;
