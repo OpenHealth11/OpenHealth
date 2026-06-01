@@ -60,6 +60,47 @@ export default function DanisanPanel() {
     fetchProfile();
   }, []);
 
+  useEffect(() => {
+  async function loadDailyTracking() {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    try {
+      const res = await fetch("/api/daily-tracking", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        console.error(result.error);
+        return;
+      }
+
+      setData((prev) => ({
+        ...prev,
+        gunlukKayitlar: result.records.map((r) => {
+          const parts = (r.Notes || "").split(" - ");
+
+          return {
+            id: r.TrackingID,
+            besin: parts[0] || "",
+            kalori: Number(
+              (parts[1] || "0").replace(" kcal", "")
+            ),
+          };
+        }),
+      }));
+    } catch (err) {
+      console.error("Daily tracking yüklenemedi", err);
+    }
+  }
+
+  loadDailyTracking();
+}, []);
+
   const addWater = () => {
     setData((prev) => ({
       ...prev,
@@ -74,16 +115,46 @@ export default function DanisanPanel() {
     }));
   };
 
-  const addGunlukKayit = (newItem) => {
-    if (!newItem.besin.trim() || !newItem.kalori) return;
+  const addGunlukKayit = async (newItem) => {
+  if (!newItem.besin.trim() || !newItem.kalori) return;
+
+  const token = localStorage.getItem("token");
+
+  try {
+    const res = await fetch("/api/daily-tracking", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        besin: newItem.besin,
+        kalori: Number(newItem.kalori),
+      }),
+    });
+
+    const result = await res.json();
+
+    if (!res.ok) {
+      alert(result.error || "Kayıt eklenemedi.");
+      return;
+    }
+
     setData((prev) => ({
       ...prev,
       gunlukKayitlar: [
         ...prev.gunlukKayitlar,
-        { id: Date.now(), besin: newItem.besin, kalori: Number(newItem.kalori) },
+        {
+          id: result.record.TrackingID,
+          besin: newItem.besin,
+          kalori: Number(newItem.kalori),
+        },
       ],
     }));
-  };
+  } catch {
+    alert("Sunucuya bağlanılamadı.");
+  }
+};
 
   const deleteGunlukKayit = (id) => {
     setData((prev) => ({
