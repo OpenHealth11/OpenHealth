@@ -121,7 +121,7 @@ export default function PlanYonetimi({ onPlansChanged }) {
       setLoadState({ loading: true, err: "" });
       try {
         const [dRes, pRes] = await Promise.all([
-          fetch("/api/diyetisyen/danisanlar", { headers: authHeaders() }),
+          fetch("/api/diyetisyen/clients", { headers: authHeaders() }),
           fetch("/api/diyetisyen/plans", { headers: authHeaders() }),
         ]);
         if (!dRes.ok || !pRes.ok) {
@@ -135,7 +135,8 @@ export default function PlanYonetimi({ onPlansChanged }) {
         const dJson = await dRes.json();
         const pJson = await pRes.json();
         if (cancelled) return;
-        setDanisanlar(dJson.danisanlar || []);
+        const clients = Array.isArray(dJson.clients) ? dJson.clients : [];
+        setDanisanlar(clients.filter((c) => (c.durum ?? "").trim() === "Aktif"));
         const list = pJson.plans || [];
         setPlans(list);
         onPlansChanged?.(list);
@@ -192,11 +193,16 @@ export default function PlanYonetimi({ onPlansChanged }) {
   };
 
   const ogunSil = (id) => {
-    setForm({
-      ...form,
-      ogunler: form.ogunler.filter((ogun) => ogun.id !== id),
-    });
-  };
+  if (form.ogunler.length <= 1) {
+    alert("Plan için en az bir öğün bulunmalıdır.");
+    return;
+  }
+
+  setForm({
+    ...form,
+    ogunler: form.ogunler.filter((ogun) => ogun.id !== id),
+  });
+};
 
   const formuTemizle = () => {
     setForm(bosForm);
@@ -236,6 +242,20 @@ export default function PlanYonetimi({ onPlansChanged }) {
         return;
       }
     }
+
+    const eksikOgunVar = form.ogunler.some((ogun) => {
+  return (
+    !String(ogun.ogunAdi || "").trim() ||
+    !String(ogun.saat || "").trim() ||
+    !String(ogun.icerik || "").trim() ||
+    !String(ogun.kalori || "").trim()
+  );
+});
+
+if (form.ogunler.length === 0 || eksikOgunVar) {
+  alert("Her öğün için ad, saat, içerik ve kalori bilgisi girilmelidir.");
+  return;
+}
 
     const ogunler = buildOgunlerPayload(form, toplamKalori, kaloriDurumu);
 
@@ -340,7 +360,7 @@ export default function PlanYonetimi({ onPlansChanged }) {
             >
               <option value="">
                 {danisanlar.length === 0
-                  ? "Onaylı danışan yok"
+                  ? "Atanmış aktif danışan yok"
                   : "Danışan seçin"}
               </option>
               {danisanlar.map((d) => (
@@ -520,7 +540,7 @@ export default function PlanYonetimi({ onPlansChanged }) {
               const toplam = meta?.toplamKalori ?? 0;
               const su = meta?.suHedefi ?? "-";
               return (
-                <div className="dy-list-item" key={plan.id}>
+                <div className="dy-plan-item" key={plan.id}>
                   <div>
                     <strong>{plan.planAdi}</strong>
                     <p>Danışan: {plan.clientFullName || `#${plan.clientUserId}`}</p>

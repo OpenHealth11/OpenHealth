@@ -1,15 +1,13 @@
-function DiyetisyenTopbar({ fullName, onLogout }) {
+import "./Diyetisyen.css";
+
+function DiyetisyenTopbar({ fullName }) {
   return (
     <header className="dy-topbar">
-      <div>
-        <h1>Diyetisyen Paneli</h1>
-        <p>Hoş geldiniz, {fullName}</p>
-      </div>
-
-      <button className="dy-primary-btn" onClick={onLogout}>
-        Çıkış
-      </button>
+      <p className="dy-welcome-text">
+        Hoş geldiniz, {fullName}
+      </p>
     </header>
   );
 }
+
 export default DiyetisyenTopbar;
