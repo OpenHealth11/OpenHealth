@@ -4,8 +4,8 @@
 
 export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Unicode harf/rakam + yaygın özel karakterler (emoji vb. hariç) */
-const LOCAL_PART = /^[\p{L}\p{N}._%+-]+$/u;
+/** ASCII harf/rakam + yaygın özel karakterler (\p{} kullanılmıyor — bazı tarayıcı/Vite ortamlarında boş sayfa riski) */
+const LOCAL_PART = /^[a-zA-Z0-9._%+-]+$/;
 const DOMAIN_LABEL = /^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/;
 
 /**
@@ -74,4 +74,47 @@ export function validateEmail(raw) {
     return { ok: false, error: "Geçerli bir e-posta girin." };
   }
   return { ok: true, value: email };
+}
+
+/** Danışan profili: boy (cm), kilo/hedef (kg) — boş alanlar izinli (null). */
+export function validateProfileMetrics({ boy, kilo, hedef }) {
+  const BOY_MIN = 40;
+  const BOY_MAX = 250;
+  const KG_MIN = 25;
+  const KG_MAX = 350;
+
+  const parseOpt = (v) => {
+    if (v === null || v === undefined) return { empty: true };
+    if (typeof v === "string" && v.trim() === "") return { empty: true };
+    const n = Number(v);
+    if (!Number.isFinite(n)) return { invalid: true };
+    return { empty: false, n };
+  };
+
+  const b = parseOpt(boy);
+  if (b.invalid) return { ok: false, error: "Boy için geçerli bir sayı girin." };
+  if (!b.empty && (b.n < BOY_MIN || b.n > BOY_MAX)) {
+    return { ok: false, error: `Boy ${BOY_MIN}–${BOY_MAX} cm arasında olmalıdır.` };
+  }
+
+  const k = parseOpt(kilo);
+  if (k.invalid) return { ok: false, error: "Kilo için geçerli bir sayı girin." };
+  if (!k.empty && (k.n < KG_MIN || k.n > KG_MAX)) {
+    return { ok: false, error: `Kilo ${KG_MIN}–${KG_MAX} kg arasında olmalıdır.` };
+  }
+
+  const h = parseOpt(hedef);
+  if (h.invalid) return { ok: false, error: "Hedef kilo için geçerli bir sayı girin." };
+  if (!h.empty && (h.n < KG_MIN || h.n > KG_MAX)) {
+    return { ok: false, error: `Hedef kilo ${KG_MIN}–${KG_MAX} kg arasında olmalıdır.` };
+  }
+
+  return { ok: true };
+}
+
+/** NVARCHAR(4000) ile uyum için metin kırpma */
+export function clampNvarcharMax4000(s) {
+  if (s == null || typeof s !== "string") return "";
+  const t = s.trim();
+  return t.length <= 4000 ? t : t.slice(0, 4000);
 }
