@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { validateEmail } from "../validation.js";
+import { apiUrl } from "./apiBase.js";
 import "./AuthPage.css";
 
 function AuthPage({
@@ -22,6 +23,13 @@ function AuthPage({
     setAuthError("");
     if (authMode === "register") setRegisterNotice("");
   }, [authMode, role]);
+
+  useEffect(() => {
+    const flash = sessionStorage.getItem("authFlash");
+    if (!flash) return;
+    sessionStorage.removeItem("authFlash");
+    setAuthError(flash);
+  }, []);
 
   function messageFromBody(status, raw) {
     try {
@@ -57,7 +65,7 @@ function AuthPage({
     setAuthLoading(true);
 
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch(apiUrl("/api/auth/login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -86,6 +94,15 @@ function AuthPage({
           data.error ||
             "Giriş başarısız. Rol seçimin hesaptaki rol ile aynı mı kontrol et."
         );
+        return;
+      }
+
+      if (
+        !data.token ||
+        !data.user ||
+        typeof data.user !== "object"
+      ) {
+        setAuthError("Sunucu yanıtı eksik (oturum bilgisi alınamadı).");
         return;
       }
 
@@ -130,7 +147,7 @@ function AuthPage({
     setAuthLoading(true);
 
     try {
-      const res = await fetch("/api/auth/register", {
+      const res = await fetch(apiUrl("/api/auth/register"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -158,9 +175,17 @@ function AuthPage({
       }
 
       if (data.token) {
-        localStorage.setItem("token", data.token);
-        localStorage.setItem("user", JSON.stringify(data.user));
-        onAuthSuccess?.(data);
+        if (!data.user || typeof data.user !== "object") {
+          setAuthError("Sunucu yanıtı eksik (kullanıcı bilgisi alınamadı).");
+          return;
+        }
+        setRegisterNotice(
+          "Kayıt başarılı. Aşağıdan giriş bilgilerinle oturum açabilirsin."
+        );
+        switchMode("login");
+        setPassword("");
+        setPasswordConfirm("");
+        setFullName("");
       } else {
         setRegisterNotice(
           typeof data.message === "string"

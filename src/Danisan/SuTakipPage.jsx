@@ -2,7 +2,12 @@ import React from "react";
 import { FiDroplet, FiPlus, FiMinus, FiCheckCircle, FiTarget } from "react-icons/fi";
 
 function SuTakipPage({ water, addWater, removeWater }) {
-  const yuzde = Math.min(Math.round((water.icilen / water.hedef) * 100), 100);
+  const w =
+    water && typeof water === "object"
+      ? water
+      : { icilen: 0, hedef: 8 };
+  const hedefSu = w.hedef || 1;
+  const yuzde = Math.min(Math.round((w.icilen / hedefSu) * 100), 100);
 
   let mesaj = "Hadi ilk yudumu alarak başlayalım!";
   if (yuzde === 100) mesaj = "Tebrikler, bugünkü hedefine ulaştın! 🥳";
@@ -60,7 +65,7 @@ function SuTakipPage({ water, addWater, removeWater }) {
           }}>
             <FiTarget color="#94a3b8" size={20} />
             <span style={{ color: "#64748b", fontWeight: "600" }}>Günlük Hedef:</span>
-            <span style={{ color: "#1e4d3b", fontWeight: "800", fontSize: "18px" }}>{water.hedef} Bardak</span>
+            <span style={{ color: "#1e4d3b", fontWeight: "800", fontSize: "18px" }}>{w.hedef} Bardak</span>
           </div>
         </div>
 
@@ -73,10 +78,10 @@ function SuTakipPage({ water, addWater, removeWater }) {
           {/* Büyük Sayaç */}
           <div style={{ display: "flex", alignItems: "baseline", gap: "5px", minWidth: "150px" }}>
             <span style={{ fontSize: "70px", fontWeight: "900", color: "#0ea5e9", lineHeight: "1" }}>
-              {water.icilen}
+              {w.icilen}
             </span>
             <span style={{ fontSize: "24px", fontWeight: "700", color: "#94a3b8" }}>
-              / {water.hedef}
+              / {w.hedef}
             </span>
             <span style={{ fontSize: "16px", fontWeight: "600", color: "#64748b", marginLeft: "5px" }}>
               bardak
@@ -107,19 +112,19 @@ function SuTakipPage({ water, addWater, removeWater }) {
           {/* Azalt Butonu */}
           <button 
             onClick={removeWater}
-            disabled={water.icilen === 0}
+            disabled={w.icilen === 0}
             style={{ 
               padding: "15px 25px", 
               backgroundColor: "white", 
-              color: water.icilen === 0 ? "#cbd5e1" : "#ef4444", 
-              border: `2px solid ${water.icilen === 0 ? "#e2e8f0" : "#fee2e2"}`,
+              color: w.icilen === 0 ? "#cbd5e1" : "#ef4444", 
+              border: `2px solid ${w.icilen === 0 ? "#e2e8f0" : "#fee2e2"}`,
               borderRadius: "14px", 
-              cursor: water.icilen === 0 ? "not-allowed" : "pointer", 
+              cursor: w.icilen === 0 ? "not-allowed" : "pointer", 
               display: "flex", alignItems: "center", gap: "8px", 
               fontWeight: "700", fontSize: "16px", transition: "0.2s" 
             }}
-            onMouseEnter={(e) => { if(water.icilen > 0) e.currentTarget.style.backgroundColor = "#fee2e2" }}
-            onMouseLeave={(e) => { if(water.icilen > 0) e.currentTarget.style.backgroundColor = "white" }}
+            onMouseEnter={(e) => { if(w.icilen > 0) e.currentTarget.style.backgroundColor = "#fee2e2" }}
+            onMouseLeave={(e) => { if(w.icilen > 0) e.currentTarget.style.backgroundColor = "white" }}
           >
             <FiMinus size={20} /> Bardak Azalt
           </button>
@@ -127,23 +132,23 @@ function SuTakipPage({ water, addWater, removeWater }) {
           {/* Ekle Butonu */}
           <button 
             onClick={addWater}
-            disabled={water.icilen >= water.hedef}
+            disabled={w.icilen >= w.hedef}
             style={{ 
               padding: "15px 35px", 
-              backgroundColor: water.icilen >= water.hedef ? "#10b981" : "#0ea5e9", 
+              backgroundColor: w.icilen >= w.hedef ? "#10b981" : "#0ea5e9", 
               color: "white", 
               border: "none", 
               borderRadius: "14px", 
-              cursor: water.icilen >= water.hedef ? "not-allowed" : "pointer", 
+              cursor: w.icilen >= w.hedef ? "not-allowed" : "pointer", 
               display: "flex", justifyContent: "center", alignItems: "center", gap: "10px", 
               fontWeight: "700", fontSize: "16px", transition: "0.2s",
               boxShadow: "0 4px 10px rgba(14, 165, 233, 0.2)"
             }}
-            onMouseEnter={(e) => { if(water.icilen < water.hedef) e.currentTarget.style.backgroundColor = "#0284c7" }}
-            onMouseLeave={(e) => { if(water.icilen < water.hedef) e.currentTarget.style.backgroundColor = "#0ea5e9" }}
+            onMouseEnter={(e) => { if(w.icilen < w.hedef) e.currentTarget.style.backgroundColor = "#0284c7" }}
+            onMouseLeave={(e) => { if(w.icilen < w.hedef) e.currentTarget.style.backgroundColor = "#0ea5e9" }}
           >
-            {water.icilen >= water.hedef ? <FiCheckCircle size={20} /> : <FiPlus size={20} />} 
-            {water.icilen >= water.hedef ? "Bugün Tamamlandı!" : "Bir Bardak Daha İçtim"}
+            {w.icilen >= w.hedef ? <FiCheckCircle size={20} /> : <FiPlus size={20} />} 
+            {w.icilen >= w.hedef ? "Bugün Tamamlandı!" : "Bir Bardak Daha İçtim"}
           </button>
         </div>
 
