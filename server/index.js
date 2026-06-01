@@ -1,5 +1,9 @@
 import crypto from "crypto";
 import "dotenv/config";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import multer from "multer";
 import express from "express";
 import cors from "cors";
 import bcrypt from "bcryptjs";
@@ -65,6 +69,44 @@ const app = express();
 app.use(cors({ origin: true, credentials: true }));
 
 app.use(express.json({ limit: "50mb" }));
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const BLOOD_REPORT_DIR = path.join(__dirname, "..", "uploads", "blood-reports");
+fs.mkdirSync(BLOOD_REPORT_DIR, { recursive: true });
+
+function bloodReportPaths(userId) {
+  const safeUserId = String(userId).replace(/[^0-9a-zA-Z_-]/g, "");
+  return {
+    pdf: path.join(BLOOD_REPORT_DIR, `client-${safeUserId}.pdf`),
+    meta: path.join(BLOOD_REPORT_DIR, `client-${safeUserId}.json`),
+  };
+}
+
+const bloodReportUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, BLOOD_REPORT_DIR),
+    filename: (_req, _file, cb) => {
+      cb(null, `tmp-${Date.now()}-${Math.round(Math.random() * 1e9)}.pdf`);
+    },
+  }),
+  limits: {
+    fileSize: 15 * 1024 * 1024,
+  },
+  fileFilter: (_req, file, cb) => {
+    const isPdf =
+      file.mimetype === "application/pdf" ||
+      String(file.originalname).toLowerCase().endsWith(".pdf");
+
+    if (!isPdf) {
+      cb(new Error("Sadece PDF dosyası yüklenebilir."));
+      return;
+    }
+
+    cb(null, true);
+  },
+});
 
 const ROLES = new Set(["danisan", "diyetisyen"]);
 
@@ -861,6 +903,128 @@ app.put("/api/health-info", async (req, res) => {
   } catch (e) {
     console.error("[health-info-update]", e);
     return res.status(500).json({ error: "Sunucu hatası." });
+  }
+});
+
+app.get("/api/health-info/blood-report", async (req, res) => {
+  try {
+    const user = await getUserFromAuthHeader(req);
+
+    if (!user) {
+      return res.status(401).json({ error: "Yetkisiz." });
+    }
+
+    const paths = bloodReportPaths(user.id);
+
+    if (!fs.existsSync(paths.pdf)) {
+      return res.json({
+        exists: false,
+        fileName: "",
+        uploadedAt: "",
+        downloadUrl: "",
+      });
+    }
+
+    let meta = {};
+    if (fs.existsSync(paths.meta)) {
+      try {
+        meta = JSON.parse(fs.readFileSync(paths.meta, "utf8"));
+      } catch {
+        meta = {};
+      }
+    }
+
+    return res.json({
+      exists: true,
+      fileName: meta.originalName || "kan-tetkik-raporu.pdf",
+      uploadedAt: meta.uploadedAt || "",
+      downloadUrl: "/api/health-info/blood-report/download",
+    });
+  } catch (e) {
+    console.error("[blood-report-info]", e);
+    return res.status(500).json({ error: "Kan raporu bilgisi alınamadı." });
+  }
+});
+
+app.post(
+  "/api/health-info/blood-report",
+  bloodReportUpload.single("bloodReport"),
+  async (req, res) => {
+    try {
+      const user = await getUserFromAuthHeader(req);
+
+      if (!user) {
+        if (req.file?.path) fs.rmSync(req.file.path, { force: true });
+        return res.status(401).json({ error: "Yetkisiz." });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ error: "PDF dosyası zorunludur." });
+      }
+
+      const paths = bloodReportPaths(user.id);
+
+      fs.rmSync(paths.pdf, { force: true });
+      fs.renameSync(req.file.path, paths.pdf);
+
+      const meta = {
+        originalName: req.file.originalname,
+        uploadedAt: new Date().toISOString(),
+        size: req.file.size,
+      };
+
+      fs.writeFileSync(paths.meta, JSON.stringify(meta, null, 2), "utf8");
+
+      return res.json({
+        message: "Kan tetkik raporu yüklendi.",
+        report: {
+          exists: true,
+          fileName: meta.originalName,
+          uploadedAt: meta.uploadedAt,
+          downloadUrl: "/api/health-info/blood-report/download",
+        },
+      });
+    } catch (e) {
+      console.error("[blood-report-upload]", e);
+
+      if (req.file?.path) {
+        fs.rmSync(req.file.path, { force: true });
+      }
+
+      return res.status(500).json({ error: "Kan raporu yüklenemedi." });
+    }
+  }
+);
+
+app.get("/api/health-info/blood-report/download", async (req, res) => {
+  try {
+    const user = await getUserFromAuthHeader(req);
+
+    if (!user) {
+      return res.status(401).json({ error: "Yetkisiz." });
+    }
+
+    const paths = bloodReportPaths(user.id);
+
+    if (!fs.existsSync(paths.pdf)) {
+      return res.status(404).json({ error: "Kan raporu bulunamadı." });
+    }
+
+    let originalName = "kan-tetkik-raporu.pdf";
+
+    if (fs.existsSync(paths.meta)) {
+      try {
+        const meta = JSON.parse(fs.readFileSync(paths.meta, "utf8"));
+        originalName = meta.originalName || originalName;
+      } catch {
+        // meta okunamazsa varsayılan ad kullanılır
+      }
+    }
+
+    return res.download(paths.pdf, originalName);
+  } catch (e) {
+    console.error("[blood-report-download]", e);
+    return res.status(500).json({ error: "Kan raporu indirilemedi." });
   }
 });
 

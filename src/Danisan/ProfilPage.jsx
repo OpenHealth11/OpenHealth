@@ -20,6 +20,8 @@ function ProfilPage({ user, updateProfile }) {
   const kanPdfInputRef = useRef(null);
   const [kanPdfDrag, setKanPdfDrag] = useState(false);
   const [kanPdfSecimi, setKanPdfSecimi] = useState(null);
+  const [kanPdfBilgi, setKanPdfBilgi] = useState(null);
+  const [kanPdfUploading, setKanPdfUploading] = useState(false);
 
   useEffect(() => {
     setForm({
@@ -33,6 +35,32 @@ function ProfilPage({ user, updateProfile }) {
       ilaclar: user?.kullanilanIlaclar || "",
     });
   }, [user]);
+
+  useEffect(() => {
+  async function loadBloodReportInfo() {
+    const token = localStorage.getItem("token");
+
+    if (!token) return;
+
+    try {
+      const res = await fetch("/api/health-info/blood-report", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        setKanPdfBilgi(data);
+      }
+    } catch {
+      // Bilgi alınamazsa profil ekranı bozulmasın
+    }
+  }
+
+  loadBloodReportInfo();
+}, []);
 
   // Sayısal girişleri ve karakter uzunluğunu kontrol eden yardımcı fonksiyon
   const handleNumericInput = (field, value, maxLength) => {
@@ -70,10 +98,19 @@ function ProfilPage({ user, updateProfile }) {
 
       const result = await updateProfile(payload);
 
-      if (result?.ok) {
-        setSaved(true);
-        setTimeout(() => setSaved(false), 3000);
-      }
+if (!result?.ok) {
+  return;
+}
+
+const uploadResult = await uploadKanPdfIfNeeded();
+
+if (!uploadResult.ok) {
+  alert(uploadResult.error);
+  return;
+}
+
+setSaved(true);
+setTimeout(() => setSaved(false), 3000);
     } finally {
       setSaving(false);
     }
@@ -96,6 +133,46 @@ function ProfilPage({ user, updateProfile }) {
     }
     setKanPdfSecimi({ file: f });
   }
+
+  async function uploadKanPdfIfNeeded() {
+  if (!kanPdfSecimi?.file) return { ok: true };
+
+  const token = localStorage.getItem("token");
+
+  if (!token) {
+    return { ok: false, error: "Oturum bulunamadı. Lütfen tekrar giriş yapın." };
+  }
+
+  const formData = new FormData();
+  formData.append("bloodReport", kanPdfSecimi.file);
+
+  setKanPdfUploading(true);
+
+  try {
+    const res = await fetch("/api/health-info/blood-report", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      return { ok: false, error: data.error || "Kan raporu yüklenemedi." };
+    }
+
+    setKanPdfBilgi(data.report);
+    setKanPdfSecimi(null);
+
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "Kan raporu yüklenirken sunucuya bağlanılamadı." };
+  } finally {
+    setKanPdfUploading(false);
+  }
+}
 
   function handleDrag(e) {
     e.preventDefault();
@@ -152,7 +229,13 @@ function ProfilPage({ user, updateProfile }) {
               </div>
               <div>
                 <span style={infoLabelStyle}>Kan Değerleri</span>
-                <p style={infoTextStyle}>{kanPdfSecimi ? kanPdfSecimi.file.name : "Henüz dosya yüklenmedi"}</p>
+                <p style={infoTextStyle}>
+  {kanPdfSecimi
+    ? kanPdfSecimi.file.name
+    : kanPdfBilgi?.exists
+      ? kanPdfBilgi.fileName
+      : "Henüz dosya yüklenmedi"}
+</p>
               </div>
             </div>
           </div>
@@ -247,12 +330,39 @@ function ProfilPage({ user, updateProfile }) {
                   <FiFileText /> <span>{kanPdfSecimi.file.name}</span>
                   <button type="button" onClick={(e) => { e.stopPropagation(); setKanPdfSecimi(null); }} style={removeFileBtnStyle}>Kaldır</button>
                 </div>
-              )}
+              )} 
+              {!kanPdfSecimi && kanPdfBilgi?.exists && (
+  <div style={selectedFileBadgeStyle}>
+    <FiFileText />
+    <span>
+      Yüklü rapor: {kanPdfBilgi.fileName}
+    </span>
+    <a
+      href={kanPdfBilgi.downloadUrl}
+      target="_blank"
+      rel="noreferrer"
+      style={{ marginLeft: "auto", color: "#15803d", fontWeight: "700" }}
+    >
+      İndir
+    </a>
+  </div>
+)}
+
+
             </div>
 
-            <button type="submit" disabled={saving} style={{ ...buttonStyle, backgroundColor: saved ? "#10b981" : "#1e4d3b" }}>
-              <FiSave /> {saving ? "Kaydediliyor..." : saved ? "Değişiklikler Kaydedildi!" : "Bilgileri Güncelle"}
-            </button>
+            <button
+  type="submit"
+  disabled={saving || kanPdfUploading}
+  style={{ ...buttonStyle, backgroundColor: saved ? "#10b981" : "#1e4d3b" }}
+>
+  <FiSave />
+  {saving || kanPdfUploading
+    ? "Kaydediliyor..."
+    : saved
+      ? "Değişiklikler Kaydedildi!"
+      : "Bilgileri Güncelle"}
+</button>
           </form>
         </div>
       </div>
