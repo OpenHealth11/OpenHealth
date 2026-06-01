@@ -97,46 +97,195 @@ const kategoriSecenekleri = [
   "Atıştırmalıklar",
 ];
 
-const basicSwapSuggestions = {
-  kola: ["Maden suyu", "Ayran", "Limonlu su", "Şekersiz soğuk çay"],
-  gazoz: ["Maden suyu", "Ayran", "Su"],
-  gazlı: ["Maden suyu", "Ayran", "Su"],
-  gazli: ["Maden suyu", "Ayran", "Su"],
+const smartSwapRules = [
+  {
+    keywords: ["çikolata", "cikolata", "kek", "pasta", "gofret", "tatlı", "tatli", "dondurma", "şeker", "seker"],
+    group: "Tatlı alternatifi",
+    suggestions: [
+      {
+        name: "Yoğurt + meyve",
+        tag: "Daha dengeli",
+        calories: 160,
+        reason: "Tatlı isteğini daha düşük kalori ve daha dengeli içerikle karşılamaya yardımcı olur.",
+      },
+      {
+        name: "Bitter çikolata küçük porsiyon",
+        tag: "Porsiyon kontrollü",
+        calories: 120,
+        reason: "Tamamen yasaklamak yerine porsiyonu küçülterek daha kontrollü bir alternatif sunar.",
+      },
+      {
+        name: "Yulaf + muz + yoğurt",
+        tag: "Daha tok tutar",
+        calories: 220,
+        reason: "Lif ve protein içeriği daha iyi olduğu için daha uzun süre tok tutabilir.",
+      },
+    ],
+  },
+  {
+    keywords: ["kola", "gazoz", "gazlı", "gazli", "meyve suyu", "enerji içeceği", "enerji icecegi"],
+    group: "İçecek alternatifi",
+    suggestions: [
+      {
+        name: "Maden suyu",
+        tag: "Daha hafif",
+        calories: 0,
+        reason: "Şekerli içeceklere göre kalori alımını azaltmaya yardımcı olur.",
+      },
+      {
+        name: "Ayran",
+        tag: "Daha dengeli",
+        calories: 70,
+        reason: "Şekerli içeceklere göre daha tok tutan ve öğünle daha uyumlu bir seçenektir.",
+      },
+      {
+        name: "Limonlu su",
+        tag: "Kalorisiz",
+        calories: 5,
+        reason: "Tatlı içecek isteğini düşük kalorili şekilde bastırabilir.",
+      },
+    ],
+  },
+  {
+    keywords: ["hamburger", "pizza", "patates kızartması", "kızartma", "kizartma", "fast food", "döner", "doner"],
+    group: "Fast food alternatifi",
+    suggestions: [
+      {
+        name: "Izgara tavuk salata",
+        tag: "Protein odaklı",
+        calories: 300,
+        reason: "Kızartma ve sos yükünü azaltırken protein alımını korumaya yardımcı olur.",
+      },
+      {
+        name: "Tam buğday sandviç",
+        tag: "Daha dengeli",
+        calories: 350,
+        reason: "Beyaz ekmek ve ağır soslar yerine daha kontrollü bir öğün alternatifi sunar.",
+      },
+      {
+        name: "Fırında patates",
+        tag: "Daha hafif",
+        calories: 180,
+        reason: "Kızartmaya göre yağ içeriği daha düşük bir alternatiftir.",
+      },
+    ],
+  },
+  {
+    keywords: ["pirinç", "pirinc", "pilav", "makarna", "noodle"],
+    group: "Karbonhidrat alternatifi",
+    suggestions: [
+      {
+        name: "Bulgur pilavı",
+        tag: "Daha lifli",
+        calories: 180,
+        reason: "Pirinç pilavına göre lif içeriği daha yüksek ve daha tok tutucu olabilir.",
+      },
+      {
+        name: "Tam buğday makarna",
+        tag: "Daha dengeli",
+        calories: 210,
+        reason: "Normal makarnaya göre daha iyi lif desteği sağlayabilir.",
+      },
+      {
+        name: "Sebzeli bulgur",
+        tag: "Daha hacimli",
+        calories: 170,
+        reason: "Sebze eklenmesi porsiyonu büyütürken kalori kontrolünü kolaylaştırabilir.",
+      },
+    ],
+  },
+  {
+    keywords: ["cips", "kraker", "bisküvi", "biskuvi", "atıştırmalık", "atistirmalik"],
+    group: "Atıştırmalık alternatifi",
+    suggestions: [
+      {
+        name: "Patlamış mısır",
+        tag: "Porsiyon kontrollü",
+        calories: 120,
+        reason: "Yağsız hazırlandığında hacimli ve daha kontrollü bir atıştırmalık olabilir.",
+      },
+      {
+        name: "Fırınlanmış nohut",
+        tag: "Daha tok tutar",
+        calories: 160,
+        reason: "Protein ve lif içeriğiyle klasik paketli atıştırmalıklara göre daha dengelidir.",
+      },
+      {
+        name: "Yoğurt + tarçın",
+        tag: "Daha dengeli",
+        calories: 110,
+        reason: "Tatlı isteğini daha düşük kalorili ve protein destekli şekilde karşılayabilir.",
+      },
+    ],
+  },
+];
 
-  çikolata: ["Meyve", "Yoğurt", "Bitter çikolata", "Sütlü tatlı"],
-  cikolata: ["Meyve", "Yoğurt", "Bitter çikolata", "Sütlü tatlı"],
-  tatlı: ["Meyve", "Yoğurt", "Sütlü tatlı"],
-  tatli: ["Meyve", "Yoğurt", "Sütlü tatlı"],
-  dondurma: ["Yoğurtlu meyve", "Sütlü tatlı", "Meyve"],
+const defaultSmartSuggestions = [
+  {
+    name: "Porsiyonu küçült",
+    tag: "En pratik",
+    calories: null,
+    reason: "Besini tamamen çıkarmadan porsiyonu azaltmak kalori kontrolü için uygulanabilir bir yöntemdir.",
+  },
+  {
+    name: "Yanına salata ekle",
+    tag: "Daha tok tutar",
+    calories: null,
+    reason: "Öğüne sebze eklemek hacmi artırır ve daha dengeli bir tabak oluşturur.",
+  },
+  {
+    name: "Daha az yağlı pişirme seç",
+    tag: "Daha hafif",
+    calories: null,
+    reason: "Kızartma yerine fırın, haşlama veya ızgara tercih etmek kalori yükünü azaltabilir.",
+  },
+];
 
-  cips: ["Fırınlanmış nohut", "Patlamış mısır", "Kuruyemiş"],
-  kraker: ["Tam tahıllı galeta", "Kuruyemiş", "Yoğurt"],
-  bisküvi: ["Meyve", "Yulaflı yoğurt", "Kuruyemiş"],
-  biskuvi: ["Meyve", "Yulaflı yoğurt", "Kuruyemiş"],
+function normalizeText(value = "") {
+  return String(value).toLocaleLowerCase("tr-TR").trim();
+}
 
-  pirinç: ["Bulgur", "Kinoa", "Karabuğday"],
-  pirinc: ["Bulgur", "Kinoa", "Karabuğday"],
-  pilav: ["Bulgur pilavı", "Kinoa", "Sebzeli bulgur"],
-  makarna: ["Tam buğday makarna", "Sebzeli makarna", "Bulgur"],
+function extractCalories(food) {
+  const direct = Number(food?.calories ?? food?.kalori);
+  if (Number.isFinite(direct) && direct > 0) return direct;
 
-  "beyaz ekmek": ["Tam buğday ekmeği", "Çavdar ekmeği", "Kepekli ekmek"],
-  ekmek: ["Tam buğday ekmeği", "Çavdar ekmeği", "Kepekli ekmek"],
-  tost: ["Tam buğday tost", "Peynirli sandviç", "Yulaflı kahvaltı"],
+  const desc = String(food?.description || food?.food_description || "");
+  const match =
+    desc.match(/Calories:\s*([\d.,]+)/i) ||
+    desc.match(/Kalori:\s*([\d.,]+)/i) ||
+    desc.match(/([\d.,]+)\s*kcal/i);
 
-  kızartma: ["Fırında patates", "Haşlanmış patates", "Izgara sebze"],
-  kizartma: ["Fırında patates", "Haşlanmış patates", "Izgara sebze"],
-  patates: ["Fırında patates", "Haşlanmış patates", "Bulgur"],
+  if (!match) return null;
 
-  sucuk: ["Hindi füme", "Yumurta", "Izgara tavuk"],
-  sosis: ["Izgara tavuk", "Hindi", "Yumurta"],
-  hamburger: ["Izgara tavuk sandviç", "Tam buğday sandviç", "Ev yapımı burger"],
-  pizza: ["Tam buğday pizza", "Sebzeli tost", "Izgara tavuk"],
+  const value = Number(String(match[1]).replace(",", "."));
+  return Number.isFinite(value) ? value : null;
+}
 
-  şeker: ["Meyve", "Hurma", "Yoğurt"],
-  seker: ["Meyve", "Hurma", "Yoğurt"],
-  "meyve suyu": ["Taze meyve", "Su", "Şekersiz komposto"],
-  meyve_suyu: ["Taze meyve", "Su", "Şekersiz komposto"],
-};
+function buildSmartSwapSuggestions({ query, food }) {
+  const foodName = food?.name || food?.food_name || query || "";
+  const normalized = normalizeText(foodName);
+  const sourceCalories = extractCalories(food);
+
+  const matchedRule = smartSwapRules.find((rule) =>
+    rule.keywords.some((keyword) => normalized.includes(keyword))
+  );
+
+  const suggestions = matchedRule?.suggestions || defaultSmartSuggestions;
+
+  return suggestions.map((item) => {
+    const calorieDiff =
+      sourceCalories != null && item.calories != null
+        ? item.calories - sourceCalories
+        : null;
+
+    return {
+      ...item,
+      group: matchedRule?.group || "Genel öneri",
+      sourceCalories,
+      calorieDiff,
+    };
+  });
+}
 
 function getFoodStyle(foodName = "") {
   const lowerFood = foodName.toLowerCase().trim();
@@ -157,24 +306,22 @@ function BesinTakasPage({ takasOnerileri: takasOnerileriProp = [] }) {
   const [seciliTakas, setSeciliTakas] = useState(null);
   const [aramaKelimesi, setAramaKelimesi] = useState("");
   const [kategori, setKategori] = useState("Tümü");
-  const [fatsecretFoods, setFatsecretFoods] = useState([]);
+  const [selectedFood, setSelectedFood] = useState(null); 
   const [fatsecretLoading, setFatsecretLoading] = useState(false);
   const [fatsecretSearchedQuery, setFatsecretSearchedQuery] = useState("");
   const [fatsecretError, setFatsecretError] = useState("");
+  const [fatsecretFoods, setFatsecretFoods] = useState([]);
 
-  const getSwapSuggestions = () => {
-  const query = aramaKelimesi.trim().toLowerCase();
+  const swapSuggestions = useMemo(() => {
+  const query = aramaKelimesi.trim();
 
-  if (!query) return [];
+  if (!query && !selectedFood) return [];
 
-  const matchedKey = Object.keys(basicSwapSuggestions).find((key) =>
-    query.includes(key)
-  );
-
-  return matchedKey ? basicSwapSuggestions[matchedKey] : [];
-};
-
-const swapSuggestions = getSwapSuggestions();
+  return buildSmartSwapSuggestions({
+    query,
+    food: selectedFood,
+  });
+}, [aramaKelimesi, selectedFood]);
 
   const searchFatSecretFoods = async () => {
   const query = aramaKelimesi.trim();
@@ -183,6 +330,7 @@ const swapSuggestions = getSwapSuggestions();
     setFatsecretFoods([]);
     setFatsecretSearchedQuery("");
     setFatsecretError("");
+    setSelectedFood(null);
     return;
   }
 
@@ -326,37 +474,137 @@ const swapSuggestions = getSwapSuggestions();
       borderLeft: "6px solid #10b981",
     }}
   >
-    <h3 style={styles.sectionTitle}>Önerilen Alternatifler</h3>
+    <h3 style={styles.sectionTitle}>Akıllı Takas Önerileri</h3>
+
     <p style={styles.sectionText}>
-      Aradığın besine göre daha dengeli seçenekler:
+      {selectedFood
+        ? `${selectedFood.name} için daha dengeli alternatifler`
+        : "Aradığın besine göre daha dengeli seçenekler"}
     </p>
 
     <div
       style={{
-        display: "flex",
-        gap: "12px",
-        flexWrap: "wrap",
-        marginTop: "15px",
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+        gap: "14px",
+        marginTop: "18px",
       }}
     >
-      {swapSuggestions.map((suggestion) => (
-        <span
-          key={suggestion}
-          style={{
-            padding: "10px 14px",
-            borderRadius: "999px",
-            backgroundColor: "#dcfce7",
-            color: "#166534",
-            fontWeight: "700",
-          }}
-        >
-          {suggestion}
-        </span>
-      ))}
+      {swapSuggestions.map((suggestion) => {
+        const diff = suggestion.calorieDiff;
+
+        return (
+          <div
+            key={`${suggestion.name}-${suggestion.tag}`}
+            style={{
+              padding: "18px",
+              borderRadius: "18px",
+              backgroundColor: "#f8fafc",
+              border: "1px solid #e2e8f0",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: "10px",
+                alignItems: "center",
+                marginBottom: "10px",
+              }}
+            >
+              <span
+                style={{
+                  backgroundColor: "#dcfce7",
+                  color: "#166534",
+                  padding: "6px 10px",
+                  borderRadius: "999px",
+                  fontSize: "11px",
+                  fontWeight: "900",
+                }}
+              >
+                {suggestion.tag}
+              </span>
+
+              <span
+                style={{
+                  color: "#64748b",
+                  fontSize: "11px",
+                  fontWeight: "800",
+                }}
+              >
+                {suggestion.group}
+              </span>
+            </div>
+
+            <strong
+              style={{
+                display: "block",
+                color: "#134e4a",
+                fontSize: "17px",
+                marginBottom: "8px",
+              }}
+            >
+              {suggestion.name}
+            </strong>
+
+            {diff != null ? (
+              <p
+                style={{
+                  margin: "0 0 10px",
+                  color: diff <= 0 ? "#047857" : "#b45309",
+                  fontWeight: "900",
+                  fontSize: "13px",
+                }}
+              >
+                {diff <= 0
+                  ? `${Math.abs(Math.round(diff))} kcal daha hafif`
+                  : `${Math.round(diff)} kcal daha yüksek, ama daha dengeli olabilir`}
+              </p>
+            ) : (
+              <p
+                style={{
+                  margin: "0 0 10px",
+                  color: "#64748b",
+                  fontWeight: "800",
+                  fontSize: "13px",
+                }}
+              >
+                Kalori farkı seçilen besin bilgisine göre hesaplanır.
+              </p>
+            )}
+
+            <p
+              style={{
+                margin: 0,
+                color: "#475569",
+                fontSize: "13px",
+                lineHeight: "1.55",
+                fontWeight: "600",
+              }}
+            >
+              {suggestion.reason}
+            </p>
+          </div>
+        );
+      })}
+    </div>
+
+    <div
+      style={{
+        marginTop: "16px",
+        padding: "12px 14px",
+        borderRadius: "14px",
+        backgroundColor: "#fffbeb",
+        color: "#92400e",
+        fontSize: "13px",
+        fontWeight: "700",
+      }}
+    >
+      Bu öneriler genel bilgilendirme amaçlıdır. Kişisel sağlık durumuna göre
+      en doğru tercih diyetisyen kontrolünde yapılmalıdır.
     </div>
   </div>
 )}
-
       {(fatsecretLoading || fatsecretError || fatsecretFoods.length > 0) && (
   <div
     className="card"
@@ -389,22 +637,51 @@ const swapSuggestions = getSwapSuggestions();
 
     {!fatsecretLoading && !fatsecretError && fatsecretFoods.length > 0 && (
       <div style={{ display: "grid", gap: "12px" }}>
-        {fatsecretFoods.map((food) => (
-          <div
-            key={food.id}
-            style={{
-              padding: "14px 16px",
-              borderRadius: "14px",
-              backgroundColor: "#f8fafc",
-              border: "1px solid #e2e8f0",
-            }}
-          >
-            <strong style={{ color: "#1e4d3b" }}>{food.name}</strong>
-            <p style={{ margin: "6px 0 0", color: "#64748b" }}>
-              {food.description || "Açıklama bulunamadı."}
-            </p>
-          </div>
-        ))}
+        {fatsecretFoods.map((food) => {
+    const isSelected = selectedFood?.id === food.id;
+
+  return (
+    <div
+      key={food.id}
+      onClick={() => setSelectedFood(food)}
+      style={{
+        padding: "14px 16px",
+        borderRadius: "14px",
+        backgroundColor: isSelected ? "#ecfdf5" : "#f8fafc",
+        border: isSelected ? "2px solid #10b981" : "1px solid #e2e8f0",
+        cursor: "pointer",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          gap: "12px",
+          alignItems: "center",
+        }}
+      >
+        <strong style={{ color: "#1e4d3b" }}>{food.name}</strong>
+
+        <span
+          style={{
+            backgroundColor: isSelected ? "#10b981" : "#e2e8f0",
+            color: isSelected ? "white" : "#475569",
+            padding: "6px 10px",
+            borderRadius: "999px",
+            fontSize: "11px",
+            fontWeight: "900",
+          }}
+        >
+          {isSelected ? "Seçildi" : "Seç"}
+        </span>
+      </div>
+
+      <p style={{ margin: "6px 0 0", color: "#64748b" }}>
+        {food.description || "Açıklama bulunamadı."}
+      </p>
+    </div>
+  );
+})}
       </div>
     )}
   </div>
