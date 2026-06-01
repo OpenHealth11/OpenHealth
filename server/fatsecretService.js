@@ -1,6 +1,170 @@
 const FATSECRET_TOKEN_URL = "https://oauth.fatsecret.com/connect/token";
 const FATSECRET_SEARCH_URL = "https://platform.fatsecret.com/rest/server.api";
 
+const TURKISH_TO_ENGLISH_FOOD_MAP = {
+  // Meyveler
+  elma: "apple",
+  armut: "pear",
+  muz: "banana",
+  portakal: "orange",
+  mandalina: "tangerine",
+  limon: "lemon",
+  çilek: "strawberry",
+  cilek: "strawberry",
+  üzüm: "grape",
+  uzum: "grape",
+  karpuz: "watermelon",
+  kavun: "melon",
+  şeftali: "peach",
+  seftali: "peach",
+  kayısı: "apricot",
+  kayisi: "apricot",
+  kiraz: "cherry",
+  vişne: "sour cherry",
+  visne: "sour cherry",
+  incir: "fig",
+  nar: "pomegranate",
+  ananas: "pineapple",
+  avokado: "avocado",
+  kivi: "kiwi",
+
+  // Sebzeler
+  domates: "tomato",
+  salatalık: "cucumber",
+  salatalik: "cucumber",
+  biber: "pepper",
+  patlıcan: "eggplant",
+  patlican: "eggplant",
+  kabak: "zucchini",
+  havuç: "carrot",
+  havuc: "carrot",
+  patates: "potato",
+  soğan: "onion",
+  sogan: "onion",
+  sarımsak: "garlic",
+  sarimsak: "garlic",
+  marul: "lettuce",
+  ıspanak: "spinach",
+  ispanak: "spinach",
+  brokoli: "broccoli",
+  karnabahar: "cauliflower",
+  lahana: "cabbage",
+  mantar: "mushroom",
+  bezelye: "pea",
+  fasulye: "bean",
+  salata: "salad",
+
+  // Proteinler
+  tavuk: "chicken",
+  hindi: "turkey",
+  et: "meat",
+  dana: "beef",
+  biftek: "steak",
+  köfte: "meatball",
+  kofte: "meatball",
+  balık: "fish",
+  balik: "fish",
+  somon: "salmon",
+  ton: "tuna",
+  tonbalığı: "tuna",
+  tonbaligi: "tuna",
+  yumurta: "egg",
+  sucuk: "sausage",
+  sosis: "sausage",
+
+  // Süt ürünleri
+  süt: "milk",
+  sut: "milk",
+  yoğurt: "yogurt",
+  yogurt: "yogurt",
+  ayran: "ayran",
+  peynir: "cheese",
+  kaşar: "cheddar cheese",
+  kasar: "cheddar cheese",
+  lor: "ricotta cheese",
+  kefir: "kefir",
+  tereyağı: "butter",
+  tereyagi: "butter",
+  krema: "cream",
+
+  // Tahıllar / bakliyat
+  ekmek: "bread",
+  "beyaz ekmek": "white bread",
+  "tam buğday ekmeği": "whole wheat bread",
+  "tam bugday ekmegi": "whole wheat bread",
+  pilav: "rice",
+  pirinç: "rice",
+  pirinc: "rice",
+  bulgur: "bulgur",
+  makarna: "pasta",
+  yulaf: "oats",
+  granola: "granola",
+  mısır: "corn",
+  misir: "corn",
+  nohut: "chickpea",
+  mercimek: "lentil",
+  kuru_fasulye: "white bean",
+  "kuru fasulye": "white bean",
+  barbunya: "cranberry bean",
+  kinoa: "quinoa",
+
+  // İçecekler
+  su: "water",
+  kola: "cola",
+  gazoz: "soda",
+  "maden suyu": "sparkling mineral water",
+  kahve: "coffee",
+  çay: "tea",
+  cay: "tea",
+  meyve_suyu: "fruit juice",
+  "meyve suyu": "fruit juice",
+  smoothie: "smoothie",
+
+  // Tatlı / atıştırmalık
+  çikolata: "chocolate",
+  cikolata: "chocolate",
+  tatlı: "dessert",
+  tatli: "dessert",
+  kek: "cake",
+  pasta: "cake",
+  kurabiye: "cookie",
+  bisküvi: "biscuit",
+  biskuvi: "biscuit",
+  dondurma: "ice cream",
+  cips: "chips",
+  kraker: "cracker",
+  gofret: "wafer",
+  baklava: "baklava",
+
+  // Yemek isimleri
+  çorba: "soup",
+  corba: "soup",
+  döner: "doner kebab",
+  doner: "doner kebab",
+  kebap: "kebab",
+  pizza: "pizza",
+  hamburger: "hamburger",
+  tost: "toast",
+  sandviç: "sandwich",
+  sandvic: "sandwich",
+  omlet: "omelette",
+  menemen: "menemen",
+};
+
+function normalizeTurkishText(text = "") {
+  return String(text)
+    .trim()
+    .toLowerCase()
+    .replaceAll("İ", "i")
+    .replaceAll("I", "ı");
+}
+
+function translateSearchQuery(query) {
+  const normalized = normalizeTurkishText(query);
+
+  return TURKISH_TO_ENGLISH_FOOD_MAP[normalized] || query;
+}
+
 let cachedToken = null;
 let cachedTokenExpiresAt = 0;
 
@@ -64,6 +228,7 @@ function normalizeFood(food) {
 
 export async function searchFoodsFromFatSecret(query, maxResults = 10) {
   const searchText = String(query || "").trim();
+  const translatedSearchText = translateSearchQuery(searchText);
 
   if (!searchText) {
     return [];
@@ -73,7 +238,7 @@ export async function searchFoodsFromFatSecret(query, maxResults = 10) {
 
   const body = new URLSearchParams();
 body.set("method", "foods.search");
-body.set("search_expression", searchText);
+body.set("search_expression", translatedSearchText);
 body.set("format", "json");
 body.set("max_results", String(Math.min(Number(maxResults) || 10, 50)));
 body.set("page_number", "0");
@@ -89,7 +254,7 @@ const response = await fetch(FATSECRET_SEARCH_URL, {
 
   const data = await response.json();
 
-  console.log("[fatsecret-search-response]", JSON.stringify(data, null, 2));
+  
 
   if (!response.ok) {
     console.error("[fatsecret-search]", data);
@@ -99,9 +264,21 @@ const response = await fetch(FATSECRET_SEARCH_URL, {
 
   const rawFoods = data?.foods?.food;
 
-  if (!rawFoods) return [];
+  if (!rawFoods) {
+  return {
+    originalQuery: searchText,
+    searchedQuery: translatedSearchText,
+    foods: [],
+  };
+}
+
+
 
   const foods = Array.isArray(rawFoods) ? rawFoods : [rawFoods];
 
-  return foods.map(normalizeFood);
+  return {
+  originalQuery: searchText,
+  searchedQuery: translatedSearchText,
+  foods: foods.map(normalizeFood),
+};
 }

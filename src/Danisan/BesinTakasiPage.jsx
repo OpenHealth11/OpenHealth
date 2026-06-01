@@ -96,6 +96,47 @@ const kategoriSecenekleri = [
   "Atıştırmalıklar",
 ];
 
+const basicSwapSuggestions = {
+  kola: ["Maden suyu", "Ayran", "Limonlu su", "Şekersiz soğuk çay"],
+  gazoz: ["Maden suyu", "Ayran", "Su"],
+  gazlı: ["Maden suyu", "Ayran", "Su"],
+  gazli: ["Maden suyu", "Ayran", "Su"],
+
+  çikolata: ["Meyve", "Yoğurt", "Bitter çikolata", "Sütlü tatlı"],
+  cikolata: ["Meyve", "Yoğurt", "Bitter çikolata", "Sütlü tatlı"],
+  tatlı: ["Meyve", "Yoğurt", "Sütlü tatlı"],
+  tatli: ["Meyve", "Yoğurt", "Sütlü tatlı"],
+  dondurma: ["Yoğurtlu meyve", "Sütlü tatlı", "Meyve"],
+
+  cips: ["Fırınlanmış nohut", "Patlamış mısır", "Kuruyemiş"],
+  kraker: ["Tam tahıllı galeta", "Kuruyemiş", "Yoğurt"],
+  bisküvi: ["Meyve", "Yulaflı yoğurt", "Kuruyemiş"],
+  biskuvi: ["Meyve", "Yulaflı yoğurt", "Kuruyemiş"],
+
+  pirinç: ["Bulgur", "Kinoa", "Karabuğday"],
+  pirinc: ["Bulgur", "Kinoa", "Karabuğday"],
+  pilav: ["Bulgur pilavı", "Kinoa", "Sebzeli bulgur"],
+  makarna: ["Tam buğday makarna", "Sebzeli makarna", "Bulgur"],
+
+  "beyaz ekmek": ["Tam buğday ekmeği", "Çavdar ekmeği", "Kepekli ekmek"],
+  ekmek: ["Tam buğday ekmeği", "Çavdar ekmeği", "Kepekli ekmek"],
+  tost: ["Tam buğday tost", "Peynirli sandviç", "Yulaflı kahvaltı"],
+
+  kızartma: ["Fırında patates", "Haşlanmış patates", "Izgara sebze"],
+  kizartma: ["Fırında patates", "Haşlanmış patates", "Izgara sebze"],
+  patates: ["Fırında patates", "Haşlanmış patates", "Bulgur"],
+
+  sucuk: ["Hindi füme", "Yumurta", "Izgara tavuk"],
+  sosis: ["Izgara tavuk", "Hindi", "Yumurta"],
+  hamburger: ["Izgara tavuk sandviç", "Tam buğday sandviç", "Ev yapımı burger"],
+  pizza: ["Tam buğday pizza", "Sebzeli tost", "Izgara tavuk"],
+
+  şeker: ["Meyve", "Hurma", "Yoğurt"],
+  seker: ["Meyve", "Hurma", "Yoğurt"],
+  "meyve suyu": ["Taze meyve", "Su", "Şekersiz komposto"],
+  meyve_suyu: ["Taze meyve", "Su", "Şekersiz komposto"],
+};
+
 function getFoodStyle(foodName = "") {
   const lowerFood = foodName.toLowerCase().trim();
 
@@ -114,13 +155,29 @@ function BesinTakasPage() {
   const [kategori, setKategori] = useState("Tümü");
   const [fatsecretFoods, setFatsecretFoods] = useState([]);
   const [fatsecretLoading, setFatsecretLoading] = useState(false);
+  const [fatsecretSearchedQuery, setFatsecretSearchedQuery] = useState("");
   const [fatsecretError, setFatsecretError] = useState("");
+
+  const getSwapSuggestions = () => {
+  const query = aramaKelimesi.trim().toLowerCase();
+
+  if (!query) return [];
+
+  const matchedKey = Object.keys(basicSwapSuggestions).find((key) =>
+    query.includes(key)
+  );
+
+  return matchedKey ? basicSwapSuggestions[matchedKey] : [];
+};
+
+const swapSuggestions = getSwapSuggestions();
 
   const searchFatSecretFoods = async () => {
   const query = aramaKelimesi.trim();
 
   if (!query) {
     setFatsecretFoods([]);
+    setFatsecretSearchedQuery("");
     setFatsecretError("");
     return;
   }
@@ -138,6 +195,7 @@ function BesinTakasPage() {
     }
 
     setFatsecretFoods(data.foods || []);
+    setFatsecretSearchedQuery(data.searchedQuery || query);
   } catch {
     setFatsecretError("Sunucuya bağlanılamadı.");
   } finally {
@@ -252,6 +310,49 @@ function BesinTakasPage() {
         />
       </div>
 
+          {swapSuggestions.length > 0 && (
+  <div
+    className="card"
+    style={{
+      padding: "25px",
+      borderRadius: "20px",
+      backgroundColor: "white",
+      boxShadow: "0 10px 15px -3px rgba(0,0,0,0.05)",
+      marginBottom: "25px",
+      borderLeft: "6px solid #10b981",
+    }}
+  >
+    <h3 style={styles.sectionTitle}>Önerilen Alternatifler</h3>
+    <p style={styles.sectionText}>
+      Aradığın besine göre daha dengeli seçenekler:
+    </p>
+
+    <div
+      style={{
+        display: "flex",
+        gap: "12px",
+        flexWrap: "wrap",
+        marginTop: "15px",
+      }}
+    >
+      {swapSuggestions.map((suggestion) => (
+        <span
+          key={suggestion}
+          style={{
+            padding: "10px 14px",
+            borderRadius: "999px",
+            backgroundColor: "#dcfce7",
+            color: "#166534",
+            fontWeight: "700",
+          }}
+        >
+          {suggestion}
+        </span>
+      ))}
+    </div>
+  </div>
+)}
+
       {(fatsecretLoading || fatsecretError || fatsecretFoods.length > 0) && (
   <div
     className="card"
@@ -264,6 +365,11 @@ function BesinTakasPage() {
     }}
   >
     <h3 style={styles.sectionTitle}>FatSecret Besin Sonuçları</h3>
+    {fatsecretSearchedQuery && (
+  <p style={styles.sectionText}>
+    FatSecret araması: {fatsecretSearchedQuery}
+  </p>
+)}
 
     {fatsecretLoading && (
       <p style={{ color: "#64748b", fontWeight: "600" }}>

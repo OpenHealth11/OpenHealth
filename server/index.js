@@ -777,11 +777,10 @@ app.get("/api/foods/search", async (req, res) => {
       });
     }
 
-    const foods = await searchFoodsFromFatSecret(query, 12);
+    const result = await searchFoodsFromFatSecret(query, 12);
 
-    return res.json({
-      foods,
-    });
+    return res.json(result);
+    
   } catch (e) {
     console.error("[foods-search]", e);
 
