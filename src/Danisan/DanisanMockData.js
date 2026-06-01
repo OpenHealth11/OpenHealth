@@ -13,6 +13,14 @@ export const initialDanisanData = {
     hedef: 8,
   },
 
+  activity: {
+  aktiviteTuru: "",
+  aktiviteSuresi: "",
+  aktiviteNotu: "",
+},
+
+plan: null,
+
   meals: [
     {
       id: 1,

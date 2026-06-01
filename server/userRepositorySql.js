@@ -122,3 +122,365 @@ export async function createUser({ fullName, email, passwordHash, role }) {
     throw e;
   }
 }
+
+export async function getNotifications(userId) {
+  const pool = await getPool();
+
+  const result = await pool
+    .request()
+    .input("userId", sql.Int, userId)
+    .query(`
+      SELECT
+        NotificationID,
+        NotificationType,
+        Severity,
+        Title,
+        Body,
+        CreatedAt,
+        ReadAt
+      FROM Notifications
+      WHERE RecipientUserID = @userId
+      ORDER BY CreatedAt DESC
+    `);
+
+  return result.recordset;
+}
+
+export async function createNotification({
+  recipientUserId,
+  notificationType,
+  title,
+  body,
+  severity = "normal",
+}) {
+  const pool = await getPool();
+
+  const result = await pool
+    .request()
+    .input("recipientUserId", sql.Int, recipientUserId)
+    .input("notificationType", sql.NVarChar(40), notificationType)
+    .input("severity", sql.NVarChar(20), severity)
+    .input("title", sql.NVarChar(200), title)
+    .input("body", sql.NVarChar(sql.MAX), body)
+    .query(`
+      INSERT INTO Notifications
+      (
+        RecipientUserID,
+        NotificationType,
+        Severity,
+        Title,
+        Body
+      )
+      OUTPUT INSERTED.*
+      VALUES
+      (
+        @recipientUserId,
+        @notificationType,
+        @severity,
+        @title,
+        @body
+      )
+    `);
+
+  return result.recordset[0];
+}
+
+export async function getDietitianUserIdByClientUserId(clientUserId) {
+  const pool = await getPool();
+
+  const result = await pool
+    .request()
+    .input("clientUserId", sql.Int, clientUserId)
+    .query(`
+      SELECT d.UserID AS DietitianUserID
+      FROM Clients c
+      INNER JOIN Dietitians d
+        ON d.DietitianID = c.DietitianID
+      WHERE c.UserID = @clientUserId
+    `);
+
+  return result.recordset[0]?.DietitianUserID ?? null;
+}
+
+export async function getDailyTracking(userId) {
+  const pool = await getPool();
+
+  const result = await pool
+    .request()
+    .input("userId", sql.Int, userId)
+    .query(`
+      SELECT
+      TrackingID,
+      Notes,
+      RecordDate,
+      Durum,
+      DietitianNote,
+      Su,
+      SuHedefi,
+      AktiviteTuru,
+      AktiviteSuresi,
+      AktiviteNotu
+      FROM DailyTracking
+      WHERE ClientID = @userId
+      ORDER BY RecordDate DESC, TrackingID DESC
+    `);
+
+  return result.recordset;
+}
+
+export async function createDailyTracking(userId, notes, recordDate) {
+  const pool = await getPool();
+
+  const result = await pool
+    .request()
+    .input("userId", sql.Int, userId)
+    .input("notes", sql.NVarChar(sql.MAX), notes)
+    .input("recordDate", sql.Date, recordDate)
+    .query(`
+      INSERT INTO DailyTracking
+      (
+        ClientID,
+        Notes,
+        RecordDate
+      )
+      OUTPUT INSERTED.*
+      VALUES
+      (
+        @userId,
+        @notes,
+        @recordDate
+      )
+    `);
+
+  return result.recordset[0];
+}
+
+export async function upsertWaterTracking(userId, recordDate, su, suHedefi) {
+  const pool = await getPool();
+
+  const result = await pool
+    .request()
+    .input("userId", sql.Int, userId)
+    .input("recordDate", sql.Date, recordDate)
+    .input("su", sql.Decimal(5, 2), su)
+    .input("suHedefi", sql.Decimal(5, 2), suHedefi)
+    .query(`
+      IF EXISTS (
+        SELECT 1
+        FROM DailyTracking
+        WHERE ClientID = @userId
+          AND CAST(RecordDate AS DATE) = @recordDate
+      )
+      BEGIN
+        UPDATE DailyTracking
+        SET
+          Su = @su,
+          SuHedefi = @suHedefi
+        WHERE ClientID = @userId
+          AND CAST(RecordDate AS DATE) = @recordDate;
+
+        SELECT TOP 1 *
+        FROM DailyTracking
+        WHERE ClientID = @userId
+          AND CAST(RecordDate AS DATE) = @recordDate
+        ORDER BY TrackingID DESC;
+      END
+      ELSE
+      BEGIN
+        INSERT INTO DailyTracking
+        (
+          ClientID,
+          Notes,
+          RecordDate,
+          Su,
+          SuHedefi
+        )
+        OUTPUT INSERTED.*
+        VALUES
+        (
+          @userId,
+          NULL,
+          @recordDate,
+          @su,
+          @suHedefi
+        );
+      END
+    `);
+
+  return result.recordset[0];
+}
+
+
+export async function upsertActivityTracking(
+  userId,
+  recordDate,
+  aktiviteTuru,
+  aktiviteSuresi,
+  aktiviteNotu
+) {
+  const pool = await getPool();
+
+  const result = await pool
+    .request()
+    .input("userId", sql.Int, userId)
+    .input("recordDate", sql.Date, recordDate)
+    .input("aktiviteTuru", sql.NVarChar(100), aktiviteTuru)
+    .input("aktiviteSuresi", sql.Int, aktiviteSuresi)
+    .input("aktiviteNotu", sql.NVarChar(sql.MAX), aktiviteNotu)
+    .query(`
+      IF EXISTS (
+        SELECT 1
+        FROM DailyTracking
+        WHERE ClientID = @userId
+          AND CAST(RecordDate AS DATE) = @recordDate
+      )
+      BEGIN
+        UPDATE DailyTracking
+        SET
+          AktiviteTuru = @aktiviteTuru,
+          AktiviteSuresi = @aktiviteSuresi,
+          AktiviteNotu = @aktiviteNotu
+        WHERE ClientID = @userId
+          AND CAST(RecordDate AS DATE) = @recordDate;
+
+        SELECT TOP 1 *
+        FROM DailyTracking
+        WHERE ClientID = @userId
+          AND CAST(RecordDate AS DATE) = @recordDate
+        ORDER BY TrackingID DESC;
+      END
+      ELSE
+      BEGIN
+        INSERT INTO DailyTracking
+        (
+          ClientID,
+          Notes,
+          RecordDate,
+          AktiviteTuru,
+          AktiviteSuresi,
+          AktiviteNotu
+        )
+        OUTPUT INSERTED.*
+        VALUES
+        (
+          @userId,
+          NULL,
+          @recordDate,
+          @aktiviteTuru,
+          @aktiviteSuresi,
+          @aktiviteNotu
+        );
+      END
+    `);
+
+  return result.recordset[0];
+}
+
+export async function getDailyTrackingForDietitian(dietitianUserId) {
+  const pool = await getPool();
+
+  const result = await pool
+    .request()
+    .input("dietitianUserId", sql.Int, dietitianUserId)
+    .query(`
+      SELECT
+        dt.TrackingID,
+        u.FullName,
+        dt.Notes,
+        dt.RecordDate,
+        dt.Durum,
+        dt.Su,
+        dt.SuHedefi,
+        dt.AktiviteTuru,
+        dt.AktiviteSuresi,
+        dt.AktiviteNotu,
+        dt.DietitianNote
+      FROM DailyTracking dt
+      INNER JOIN Clients c
+        ON c.ClientID = dt.ClientID
+      INNER JOIN Users u
+        ON u.UserID = c.UserID
+      INNER JOIN Dietitians d
+        ON d.DietitianID = c.DietitianID
+      WHERE d.UserID = @dietitianUserId
+      ORDER BY dt.RecordDate DESC, dt.TrackingID DESC
+    `);
+
+  return result.recordset;
+}
+
+export async function createDailyTrackingFeedback(
+  trackingId,
+  dietitianUserId,
+  comment
+) {
+  const pool = await getPool();
+
+  const result = await pool
+    .request()
+    .input("trackingId", sql.Int, trackingId)
+    .input("dietitianUserId", sql.Int, dietitianUserId)
+    .input("comment", sql.NVarChar(sql.MAX), comment)
+    .query(`
+      INSERT INTO DailyTrackingFeedback
+      (
+        TrackingID,
+        DietitianUserID,
+        Comment
+      )
+      OUTPUT INSERTED.*
+      VALUES
+      (
+        @trackingId,
+        @dietitianUserId,
+        @comment
+      )
+    `);
+
+  return result.recordset[0];
+}
+
+export async function getDailyTrackingFeedback(trackingId) {
+  const pool = await getPool();
+
+  const result = await pool
+    .request()
+    .input("trackingId", sql.Int, trackingId)
+    .query(`
+      SELECT
+        FeedbackID,
+        TrackingID,
+        DietitianUserID,
+        Comment,
+        CreatedAt
+      FROM DailyTrackingFeedback
+      WHERE TrackingID = @trackingId
+      ORDER BY CreatedAt DESC
+    `);
+
+  return result.recordset;
+} 
+
+export async function updateDailyTrackingStatus(
+  trackingId,
+  status,
+  dietitianNote = null
+) {
+  const pool = await getPool();
+
+  const result = await pool
+    .request()
+    .input("trackingId", sql.Int, trackingId)
+    .input("status", sql.NVarChar(30), status)
+    .input("dietitianNote", sql.NVarChar(sql.MAX), dietitianNote)
+    .query(`
+      UPDATE DailyTracking
+      SET
+        Durum = @status,
+        DietitianNote = @dietitianNote
+      OUTPUT INSERTED.*
+      WHERE TrackingID = @trackingId
+    `);
+
+  return result.recordset[0];
+}

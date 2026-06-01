@@ -17,6 +17,23 @@ function PlanPage({ meals }) {
         Beslenme Planım
       </h2>
 
+      {(!meals || meals.length === 0) && (
+  <div
+    className="card"
+    style={{
+      padding: "30px",
+      borderRadius: "20px",
+      backgroundColor: "white",
+      boxShadow: "0 10px 15px -3px rgba(0,0,0,0.05)",
+      color: "#64748b",
+      fontWeight: "600",
+      textAlign: "center",
+    }}
+  >
+    Henüz size atanmış bir beslenme planı bulunmuyor.
+  </div>
+)}
+
       <div style={{ 
         display: "grid", 
         gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", 

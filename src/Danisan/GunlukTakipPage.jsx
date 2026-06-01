@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { FiPlus, FiTrash2, FiActivity, FiEdit3 } from "react-icons/fi";
 
 // --- GÖRSEL EŞLEŞTİRME MANTIĞI ---
@@ -68,8 +68,62 @@ const getFoodVisual = (foodName) => {
 // --- MANTIK SONU ---
 
 
-function GunlukTakipPage({ kayitlar, addGunlukKayit, deleteGunlukKayit }) {
+function GunlukTakipPage({
+  kayitlar,
+  addGunlukKayit,
+  deleteGunlukKayit,
+  activity,
+  addActivityTracking,
+}) {
   const [form, setForm] = useState({ besin: "", kalori: "" });
+  const [activityForm, setActivityForm] = useState({
+  aktiviteTuru: activity?.aktiviteTuru || "",
+  aktiviteSuresi: activity?.aktiviteSuresi || "",
+  aktiviteNotu: activity?.aktiviteNotu || "",
+});
+useEffect(() => {
+  setActivityForm({
+    aktiviteTuru: activity?.aktiviteTuru || "",
+    aktiviteSuresi: activity?.aktiviteSuresi || "",
+    aktiviteNotu: activity?.aktiviteNotu || "",
+  });
+}, [activity]);
+  const [feedbacks, setFeedbacks] = useState({});
+
+  useEffect(() => {
+  async function loadFeedbacks() {
+    const token = localStorage.getItem("token");
+
+    const result = {};
+
+    for (const kayit of kayitlar) {
+      try {
+        const res = await fetch(
+          `/api/daily-tracking/${kayit.id}/feedback`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (!res.ok) continue;
+
+        const body = await res.json();
+
+        result[kayit.id] = body.feedback || [];
+      } catch {
+        // ignore
+      }
+    }
+
+    setFeedbacks(result);
+  }
+
+  if (kayitlar.length > 0) {
+    loadFeedbacks();
+  }
+}, [kayitlar]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -77,6 +131,17 @@ function GunlukTakipPage({ kayitlar, addGunlukKayit, deleteGunlukKayit }) {
     addGunlukKayit(form);
     setForm({ besin: "", kalori: "" });
   };
+
+  const handleActivitySubmit = async (e) => {
+  e.preventDefault();
+
+  if (!activityForm.aktiviteTuru.trim() || !activityForm.aktiviteSuresi) {
+    alert("Aktivite türü ve süresi zorunludur.");
+    return;
+  }
+
+  await addActivityTracking(activityForm);
+};
 
   const toplamKalori = kayitlar.reduce((sum, item) => sum + item.kalori, 0);
 
@@ -141,6 +206,153 @@ function GunlukTakipPage({ kayitlar, addGunlukKayit, deleteGunlukKayit }) {
         </form>
       </div>
 
+
+            {/* Aktivite Ekleme Formu */}
+      <div
+        className="card"
+        style={{
+          padding: "25px",
+          borderRadius: "20px",
+          backgroundColor: "white",
+          boxShadow: "0 10px 15px -3px rgba(0,0,0,0.05)",
+          marginBottom: "30px",
+          borderTop: "5px solid #f59e0b",
+        }}
+      >
+        <h3
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            color: "#1e4d3b",
+            marginBottom: "20px",
+            fontSize: "18px",
+            fontWeight: "700",
+          }}
+        >
+          <FiActivity color="#f59e0b" /> Aktivite Ekle
+        </h3>
+
+        <form
+          onSubmit={handleActivitySubmit}
+          style={{
+            display: "flex",
+            gap: "15px",
+            flexWrap: "wrap",
+            alignItems: "center",
+          }}
+        >
+          <input
+            type="text"
+            placeholder="Aktivite türü (Örn: Yürüyüş)"
+            value={activityForm.aktiviteTuru}
+            onChange={(e) =>
+              setActivityForm({
+                ...activityForm,
+                aktiviteTuru: e.target.value,
+              })
+            }
+            style={{
+              flex: "2",
+              minWidth: "200px",
+              padding: "14px 15px",
+              border: "1px solid #e2e8f0",
+              borderRadius: "12px",
+              outline: "none",
+              fontSize: "15px",
+              backgroundColor: "#f8fafc",
+            }}
+          />
+
+          <input
+            type="number"
+            placeholder="Süre (dakika)"
+            value={activityForm.aktiviteSuresi}
+            onChange={(e) =>
+              setActivityForm({
+                ...activityForm,
+                aktiviteSuresi: e.target.value,
+              })
+            }
+            style={{
+              flex: "1",
+              minWidth: "120px",
+              padding: "14px 15px",
+              border: "1px solid #e2e8f0",
+              borderRadius: "12px",
+              outline: "none",
+              fontSize: "15px",
+              backgroundColor: "#f8fafc",
+            }}
+          />
+
+          <input
+            type="text"
+            placeholder="Not (isteğe bağlı)"
+            value={activityForm.aktiviteNotu}
+            onChange={(e) =>
+              setActivityForm({
+                ...activityForm,
+                aktiviteNotu: e.target.value,
+              })
+            }
+            style={{
+              flex: "2",
+              minWidth: "200px",
+              padding: "14px 15px",
+              border: "1px solid #e2e8f0",
+              borderRadius: "12px",
+              outline: "none",
+              fontSize: "15px",
+              backgroundColor: "#f8fafc",
+            }}
+          />
+
+          <button
+            type="submit"
+            style={{
+              padding: "14px 25px",
+              backgroundColor: "#f59e0b",
+              color: "white",
+              border: "none",
+              borderRadius: "12px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              fontWeight: "700",
+              fontSize: "15px",
+              transition: "0.2s",
+            }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.backgroundColor = "#d97706")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.backgroundColor = "#f59e0b")
+            }
+          >
+            <FiPlus size={18} /> Aktivite Kaydet
+          </button>
+        </form>
+
+        {activity?.aktiviteTuru && (
+          <div
+            style={{
+              marginTop: "18px",
+              padding: "12px 15px",
+              backgroundColor: "#fffbeb",
+              borderRadius: "12px",
+              color: "#92400e",
+              fontWeight: "600",
+            }}
+          >
+            Bugünkü aktivite: {activity.aktiviteTuru} -{" "}
+            {activity.aktiviteSuresi} dakika
+            {activity.aktiviteNotu ? ` (${activity.aktiviteNotu})` : ""}
+          </div>
+        )}
+      </div>
+
       {/* Alt Kısım: Günlük Kayıtlar Listesi */}
       <div 
         className="card" 
@@ -202,6 +414,30 @@ function GunlukTakipPage({ kayitlar, addGunlukKayit, deleteGunlukKayit }) {
                     <span style={{ color: "#10b981", fontSize: "14px", fontWeight: "700" }}>
                       {item.kalori} kcal
                     </span>
+                     <p>
+                    <strong>Durum:</strong> {item.durum || "Takipte"}
+                     </p>
+                     {item.dietitianNote && (
+                     <p>
+                     <strong>Diyetisyen Notu:</strong>{" "}
+                     {item.dietitianNote}
+                     </p>
+                     )}             
+                     {feedbacks[item.id]?.length > 0 && (
+                      <div
+                      style={{
+                        marginTop: "8px",
+                        padding: "8px",
+                        backgroundColor: "#ecfeff",
+                        borderRadius: "8px",
+                        fontSize: "13px",
+                    }}
+                    >
+    <strong>💬 Diyetisyen Yorumu:</strong>
+    <br />
+    {feedbacks[item.id][0].Comment}
+  </div>
+)}        
                   </div>
                 </div>
 
