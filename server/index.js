@@ -38,6 +38,7 @@ import {
   getDietitianUserIdByClientUserId,
   getDailyTracking,
   createDailyTracking,
+  getDailyTrackingForDietitian,
 } from "./userRepositorySql.js";
 
 if (!process.env.JWT_SECRET) {
@@ -855,6 +856,28 @@ app.post("/api/daily-tracking", async (req, res) => {
     });
   } catch (e) {
     console.error("[daily-tracking-create]", e);
+
+    return res.status(500).json({
+      error: "Sunucu hatası.",
+    });
+  }
+});
+
+app.get("/api/diyetisyen/daily-tracking", async (req, res) => {
+  try {
+    const user = await requireDiyetisyen(req, res);
+
+    if (!user) {
+      return;
+    }
+
+    const records = await getDailyTrackingForDietitian(user.id);
+
+    return res.json({
+      records,
+    });
+  } catch (e) {
+    console.error("[dietitian-daily-tracking]", e);
 
     return res.status(500).json({
       error: "Sunucu hatası.",

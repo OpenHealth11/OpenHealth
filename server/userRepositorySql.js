@@ -247,3 +247,29 @@ export async function createDailyTracking(userId, notes, recordDate) {
 
   return result.recordset[0];
 }
+
+export async function getDailyTrackingForDietitian(dietitianUserId) {
+  const pool = await getPool();
+
+  const result = await pool
+    .request()
+    .input("dietitianUserId", sql.Int, dietitianUserId)
+    .query(`
+      SELECT
+        dt.TrackingID,
+        u.FullName,
+        dt.Notes,
+        dt.RecordDate
+      FROM DailyTracking dt
+      INNER JOIN Clients c
+        ON c.ClientID = dt.ClientID
+      INNER JOIN Users u
+        ON u.UserID = c.UserID
+      INNER JOIN Dietitians d
+        ON d.DietitianID = c.DietitianID
+      WHERE d.UserID = @dietitianUserId
+      ORDER BY dt.RecordDate DESC, dt.TrackingID DESC
+    `);
+
+  return result.recordset;
+}

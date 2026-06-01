@@ -62,6 +62,44 @@ export default function DiyetisyenPanel() {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+  const token = localStorage.getItem("token");
+  if (!token) return;
+
+  fetch("/api/diyetisyen/daily-tracking", {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  })
+    .then((r) => (r.ok ? r.json() : Promise.reject()))
+    .then((body) => {
+      const kayitlar = (body.records || []).map((r) => {
+        const parts = (r.Notes || "").split(" - ");
+
+        return {
+          id: r.TrackingID,
+          danisanAdi: r.FullName,
+          tarih: r.RecordDate?.slice(0, 10) || "",
+          ogun: "Günlük Kayıt",
+          detay: parts[0] || r.Notes,
+          kalori: Number(
+            (parts[1] || "0").replace(" kcal", "")
+          ),
+          su: 0,
+          durum: "Takipte",
+        };
+      });
+
+      setData((prev) => ({
+        ...prev,
+        gunlukKayitlar: kayitlar,
+      }));
+    })
+    .catch((err) => {
+      console.error("Daily tracking yüklenemedi", err);
+    });
+}, []);
+
   const onaylaTalep = (id) => {
     const secilen = (data.onayBekleyenler || []).find((item) => item.id === id);
 
