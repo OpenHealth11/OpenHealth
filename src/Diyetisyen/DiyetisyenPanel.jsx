@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { initialDiyetisyenData } from "./DiyetisyenMockData";
 import "./Diyetisyen.css";
 
 import DiyetisyenSidebar from "./DiyetisyenSidebar";
@@ -39,7 +38,12 @@ function plansToDashboardRows(apiPlans) {
 export default function DiyetisyenPanel() {
   const navigate = useNavigate();
   const [activePage, setActivePage] = useState("dashboard");
-  const [data, setData] = useState(initialDiyetisyenData || {});
+  const [data, setData] = useState({
+  diyetisyen: JSON.parse(localStorage.getItem("user") || "{}"),
+  danisanlar: [],
+  planlar: [],
+  bildirimler: [],
+});
   const [onayBekleyenler, setOnayBekleyenler] = useState([]);
   const [kartProfilDanisan, setKartProfilDanisan] = useState(null);
   const [diyetisyenGunlukKayitlar, setDiyetisyenGunlukKayitlar] = useState([]);
@@ -68,20 +72,64 @@ export default function DiyetisyenPanel() {
   }, []);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
-    fetch("/api/diyetisyen/plans", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => (r.ok ? r.json() : Promise.reject()))
-      .then((body) => {
+  const token = localStorage.getItem("token");
+  if (!token) return;
+
+  let cancelled = false;
+
+  async function loadDashboardData() {
+    try {
+      const [plansRes, clientsRes, requestsRes] = await Promise.all([
+        fetch("/api/diyetisyen/plans", {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch("/api/diyetisyen/clients", {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch("/api/diyetisyen/requests", {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
+
+      const plansBody = plansRes.ok ? await plansRes.json() : { plans: [] };
+      const clientsBody = clientsRes.ok ? await clientsRes.json() : { clients: [] };
+      const requestsBody = requestsRes.ok ? await requestsRes.json() : { requests: [] };
+
+      if (cancelled) return;
+
+      const clients = Array.isArray(clientsBody.clients) ? clientsBody.clients : [];
+      const requests = Array.isArray(requestsBody.requests) ? requestsBody.requests : [];
+
+      setData((prev) => ({
+        ...prev,
+        danisanlar: clients,
+        planlar: plansToDashboardRows(plansBody.plans || []),
+        bildirimler: requests.map((request) => ({
+          id: request.id,
+          mesaj: `${request.danisanAdi || "Bir danışan"} bağlantı talebi gönderdi.`,
+          saat: request.tarih || "Bekliyor",
+        })),
+      }));
+
+      setOnayBekleyenler(requests);
+    } catch {
+      if (!cancelled) {
         setData((prev) => ({
           ...prev,
-          planlar: plansToDashboardRows(body.plans || []),
+          danisanlar: [],
+          planlar: [],
+          bildirimler: [],
         }));
-      })
-      .catch(() => {});
-  }, []);
+      }
+    }
+  }
+
+  loadDashboardData();
+
+  return () => {
+    cancelled = true;
+  };
+}, []);
 
   useEffect(() => {
     if (activePage !== "gunluk") return;
@@ -164,6 +212,10 @@ export default function DiyetisyenPanel() {
         return;
       }
       setOnayBekleyenler((prev) => prev.filter((item) => item.id !== id));
+      setData((prev) => ({
+  ...prev,
+  bildirimler: (prev.bildirimler || []).filter((item) => item.id !== id),
+}));
       setData((prev) => ({
         ...prev,
         bildirimler: secilen
