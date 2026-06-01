@@ -193,11 +193,16 @@ export default function PlanYonetimi({ onPlansChanged }) {
   };
 
   const ogunSil = (id) => {
-    setForm({
-      ...form,
-      ogunler: form.ogunler.filter((ogun) => ogun.id !== id),
-    });
-  };
+  if (form.ogunler.length <= 1) {
+    alert("Plan için en az bir öğün bulunmalıdır.");
+    return;
+  }
+
+  setForm({
+    ...form,
+    ogunler: form.ogunler.filter((ogun) => ogun.id !== id),
+  });
+};
 
   const formuTemizle = () => {
     setForm(bosForm);
@@ -237,6 +242,20 @@ export default function PlanYonetimi({ onPlansChanged }) {
         return;
       }
     }
+
+    const eksikOgunVar = form.ogunler.some((ogun) => {
+  return (
+    !String(ogun.ogunAdi || "").trim() ||
+    !String(ogun.saat || "").trim() ||
+    !String(ogun.icerik || "").trim() ||
+    !String(ogun.kalori || "").trim()
+  );
+});
+
+if (form.ogunler.length === 0 || eksikOgunVar) {
+  alert("Her öğün için ad, saat, içerik ve kalori bilgisi girilmelidir.");
+  return;
+}
 
     const ogunler = buildOgunlerPayload(form, toplamKalori, kaloriDurumu);
 

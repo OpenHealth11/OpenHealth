@@ -436,16 +436,53 @@ export async function deletePlanOgun(dietitianUserId, planId, planOgunId) {
 
 export async function deletePlanByDietitian(dietitianUserId, planId) {
   const pool = await getPool();
-  const result = await pool
-    .request()
-    .input("planId", sql.Int, Number(planId))
-    .input("dietitianUserId", sql.Int, Number(dietitianUserId))
-    .query(`
-      DELETE FROM BeslenmePlani
-      OUTPUT DELETED.PlanID
-      WHERE PlanID = @planId
-        AND DietitianUserID = @dietitianUserId
-    `);
+  const transaction = new sql.Transaction(pool);
 
-  return { ok: result.recordset.length > 0 };
+  try {
+    await transaction.begin();
+
+    const check = await new sql.Request(transaction)
+      .input("planId", sql.Int, Number(planId))
+      .input("dietitianUserId", sql.Int, Number(dietitianUserId))
+      .query(`
+        SELECT PlanID
+        FROM BeslenmePlani
+        WHERE PlanID = @planId
+          AND DietitianUserID = @dietitianUserId
+      `);
+
+    if (check.recordset.length === 0) {
+      await transaction.rollback();
+      return { ok: false };
+    }
+
+    await new sql.Request(transaction)
+      .input("planId", sql.Int, Number(planId))
+      .query(`
+        DELETE FROM PlanOgun
+        WHERE PlanID = @planId
+      `);
+
+    const deleted = await new sql.Request(transaction)
+      .input("planId", sql.Int, Number(planId))
+      .input("dietitianUserId", sql.Int, Number(dietitianUserId))
+      .query(`
+        DELETE FROM BeslenmePlani
+        OUTPUT DELETED.PlanID
+        WHERE PlanID = @planId
+          AND DietitianUserID = @dietitianUserId
+      `);
+
+    await transaction.commit();
+
+    return { ok: deleted.recordset.length > 0 };
+  } catch (error) {
+    try {
+      await transaction.rollback();
+    } catch {
+      /* ignore rollback errors */
+    }
+
+    throw error;
+  }
 }
