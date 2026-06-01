@@ -125,7 +125,7 @@ export default function DiyetisyenPanel() {
           />
         );
       case "bildirim":
-        return <Bildirimler bildirimler={data.bildirimler || []} />;
+        return <Bildirimler />;
       default:
         return (
         <DiyetisyenDashboard 
