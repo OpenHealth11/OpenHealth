@@ -17,37 +17,74 @@ function DiyetisyenDashboard({ onProfilGor }) {
   const [gunlukKayitlar, setGunlukKayitlar] = useState([]);
 
   useEffect(() => {
-    async function fetchData() {
-      const token = localStorage.getItem("token");
-      if (!token) return;
+  async function fetchData() {
+    const token = localStorage.getItem("token");
+    if (!token) return;
 
-      try {
-        const res = await fetch("/api/diyetisyen/clients", {
+    try {
+      const [clientsRes, plansRes, trackingRes] = await Promise.all([
+        fetch("/api/diyetisyen/clients", {
           headers: { Authorization: `Bearer ${token}` },
-        });
+        }),
+        fetch("/api/diyetisyen/plans", {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch("/api/diyetisyen/daily-tracking", {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
 
-        let clients = [];
-        if (res.ok) {
-          const data = await res.json();
-          clients = Array.isArray(data.clients) ? data.clients : [];
-        }
-        setDanisanlar(clients);
-      } catch (err) {
-        console.error("Dashboard veri hatası:", err);
-        setDanisanlar([]);
-      }
+      const clientsData = clientsRes.ok ? await clientsRes.json() : {};
+      const plansData = plansRes.ok ? await plansRes.json() : {};
+      const trackingData = trackingRes.ok ? await trackingRes.json() : {};
+
+      setDanisanlar(
+        Array.isArray(clientsData.clients) ? clientsData.clients : []
+      );
+
+      setPlanlar(
+        Array.isArray(plansData.plans) ? plansData.plans : []
+      );
+
+      setGunlukKayitlar(
+        Array.isArray(trackingData.entries) ? trackingData.entries : []
+      );
+    } catch (err) {
+      console.error("Dashboard veri hatası:", err);
+      setDanisanlar([]);
+      setPlanlar([]);
+      setGunlukKayitlar([]);
     }
+  }
 
-    fetchData();
-  }, []);
+  fetchData();
+}, []);
 
   const liste = Array.isArray(danisanlar) ? danisanlar : [];
   const plans = Array.isArray(planlar) ? planlar : [];
+  function planDurumu(plan) {
+  try {
+    const raw = plan?.ogunler?.[0]?.ogunler;
+    if (typeof raw === "string" && raw.trim().startsWith("{")) {
+      const meta = JSON.parse(raw);
+      return meta.durum || "Aktif";
+    }
+  } catch {
+    // okunamazsa aktif kabul edilir
+  }
+
+  return plan?.durum || "Aktif";
+}
 
   const toplamDanisan = liste.length;
   const aktifDanisan = liste.filter((d) => d.durum === "Aktif").length;
   const pasifDanisan = liste.filter((d) => d.durum === "Pasif").length;
-  const aktifPlan = plans.filter((p) => p.durum === "Aktif").length;
+  const aktifPlan = plans.filter((p) => planDurumu(p) === "Aktif").length;
+  const bugun = new Date().toISOString().slice(0, 10);
+
+const bugunkuKayitSayisi = gunlukKayitlar.filter((kayit) =>
+  String(kayit.tarih || "").startsWith(bugun)
+).length;
 
   const takipGerekenler = liste.filter(
     (d) => d.durum === "Pasif" || Math.abs(Number(d.kilo) - Number(d.hedef)) >= 8
@@ -108,7 +145,7 @@ function DiyetisyenDashboard({ onProfilGor }) {
             <span>Bugünkü Kayıt</span>
             <div className="dy-stat-icon"><FiEdit3 /></div>
           </div>
-          <strong>{gunlukKayitlar.length}</strong>
+          <strong>{bugunkuKayitSayisi}</strong>
           <small>Bugün girilen takip kayıtları</small>
         </div>
       </div>
