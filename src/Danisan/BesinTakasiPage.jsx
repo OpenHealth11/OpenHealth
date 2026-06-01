@@ -13,6 +13,7 @@ import {
 
 import { initialDanisanData } from "./DanisanMockData";
 
+
 const foodDictionary = {
   pirinç: { icon: "🍚", color: "#f59e0b" },
   pirinc: { icon: "🍚", color: "#f59e0b" },
@@ -147,8 +148,11 @@ function getFoodStyle(foodName = "") {
   return { icon: "🍽️", color: "#64748b" };
 }
 
-function BesinTakasPage() {
-  const takasOnerileri = initialDanisanData?.takasOnerileri || [];
+function BesinTakasPage({ takasOnerileri: takasOnerileriProp = [] }) {
+  const takasOnerileri =
+    Array.isArray(takasOnerileriProp) && takasOnerileriProp.length > 0
+      ? takasOnerileriProp
+      : initialDanisanData?.takasOnerileri || [];
 
   const [seciliTakas, setSeciliTakas] = useState(null);
   const [aramaKelimesi, setAramaKelimesi] = useState("");

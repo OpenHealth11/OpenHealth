@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { initialDanisanData, buildHaftalikRaporSnapshot } from "./DanisanMockData";
+import { buildHaftalikRaporSnapshot } from "./DanisanMockData";
 import { mealsFromLatestPlan } from "./planDisplay";
 import "./Danisan.css";
 
@@ -16,10 +16,21 @@ import DiyetisyenlerPage from "./DiyetisyenlerPage";
 import { validateProfileMetrics } from "../../validation.js";
 import { apiUrl } from "../apiBase.js";
 
+const emptyDanisanData = {
+  user: {},
+  meals: [],
+  water: {
+    icilen: 0,
+    hedef: 8,
+  },
+  gunlukKayitlar: [],
+  takasOnerileri: [],
+};
+
 export default function DanisanPanel() {
   const navigate = useNavigate();
   const [activePage, setActivePage] = useState("dashboard");
-  const [data, setData] = useState(initialDanisanData);
+  const [data, setData] = useState(emptyDanisanData);
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileError, setProfileError] = useState("");
   const [nutritionPlans, setNutritionPlans] = useState([]);
