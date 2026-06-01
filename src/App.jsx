@@ -95,6 +95,7 @@ function App() {
     <Routes>
       <Route path="/" element={<HomePage />} />
       <Route path="/login" element={<LoginRoute />} />
+      <Route path="/admin" element={<AdminDietitianApproval />} />
       <Route path="/admin/diyetisyen-onay" element={<AdminDietitianApproval />} />
       <Route
         path="/diyetisyen-panel"
