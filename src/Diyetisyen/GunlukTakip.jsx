@@ -4,6 +4,7 @@ function GunlukTakip({ gunlukKayitlar = [] }) {
   const [secilenDanisan, setSecilenDanisan] = useState("Tümü");
   const [secilenTarih, setSecilenTarih] = useState("");
   const [secilenKayit, setSecilenKayit] = useState(null);
+  const [feedbackText, setFeedbackText] = useState("");
 
   const danisanIsimleri = [
     "Tümü",
@@ -181,6 +182,48 @@ function GunlukTakip({ gunlukKayitlar = [] }) {
           <p>
             <strong>Not:</strong> {secilenKayit.not || "Not girilmedi."}
           </p>
+          <h4>Geri Bildirim</h4>
+
+<textarea
+  value={feedbackText}
+  onChange={(e) => setFeedbackText(e.target.value)}
+  rows={4}
+  placeholder="Danışan için geri bildirim yazın..."
+  style={{
+    width: "100%",
+    marginBottom: "12px",
+  }}
+/>
+
+<button
+  className="dy-primary-btn"
+  onClick={async () => {
+    const token = localStorage.getItem("token");
+
+    const response = await fetch(
+      `/api/diyetisyen/daily-tracking/${secilenKayit.id}/feedback`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          comment: feedbackText,
+        }),
+      }
+    );
+
+    if (response.ok) {
+      alert("Geri bildirim kaydedildi.");
+      setFeedbackText("");
+    } else {
+      alert("Geri bildirim kaydedilemedi.");
+    }
+  }}
+>
+  Geri Bildirimi Kaydet
+</button>
 
           <button
             className="dy-secondary-btn"
