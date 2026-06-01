@@ -83,6 +83,9 @@ function GunlukTakipPage({
   kayitlar = [],
   addGunlukKayit,
   deleteGunlukKayit,
+  water,
+  addWater,
+  removeWater,
 }) {
   const liste = Array.isArray(kayitlar) ? kayitlar : [];
   const [form, setForm] = useState({
@@ -98,16 +101,13 @@ function GunlukTakipPage({
     not: "",
   });
 
-  // SU TAKİBİ STATE'İ
-  const [suBardak, setSuBardak] = useState(() => {
-    const saved = localStorage.getItem("gunlukSu");
-    return saved ? parseInt(saved) : 0;
-  });
-  const hedefBardak = 8;
+  const guvenliWater =
+  water && typeof water === "object"
+    ? water
+    : { icilen: 0, hedef: 8 };
 
-  useEffect(() => {
-    localStorage.setItem("gunlukSu", suBardak);
-  }, [suBardak]);
+const suBardak = Number(guvenliWater.icilen) || 0;
+const hedefBardak = Number(guvenliWater.hedef) || 8;
 
   const mealListe = liste.filter((item) => item.kind !== "activity");
   const aktiviteKayitlari = liste.filter((item) => item.kind === "activity");
@@ -365,10 +365,13 @@ function GunlukTakipPage({
             <span style={{ color: "#94a3b8", fontSize: "16px", fontWeight: "600" }}> / {hedefBardak}</span>
           </div>
           <div style={{ display: "flex", gap: "10px" }}>
-            <button type="button" onClick={() => setSuBardak(Math.max(0, suBardak - 1))} style={{ padding: "10px", backgroundColor: "#f1f5f9", color: "#64748b", border: "none", borderRadius: "12px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <button type="button" onClick={removeWater}style={{ padding: "10px", backgroundColor: "#f1f5f9", color: "#64748b", border: "none", borderRadius: "12px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <FiMinus size={20} />
             </button>
-            <button type="button" onClick={() => setSuBardak(suBardak + 1)} style={{ padding: "10px", backgroundColor: "#3b82f6", color: "white", border: "none", borderRadius: "12px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <button
+  type="button"
+  onClick={addWater}
+  disabled={suBardak >= hedefBardak} style={{ padding: "10px", backgroundColor: "#3b82f6", color: "white", border: "none", borderRadius: "12px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <FiPlus size={20} />
             </button>
           </div>

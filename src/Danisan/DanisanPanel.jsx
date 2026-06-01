@@ -293,39 +293,80 @@ export default function DanisanPanel() {
   const dashboardMeals = useMemo(() => mealsFromLatestPlan(nutritionPlans), [nutritionPlans]);
 
   const persistWater = async (icilen, hedef) => {
-    const token = localStorage.getItem("token");
-    if (!token?.trim()) return;
-    try {
-      await fetch(apiUrl("/api/danisan/water"), {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ icilen, hedef }),
-      });
-    } catch {
-      /* UI güncellendi; sunucu sonra senkron edilebilir */
+  const token = localStorage.getItem("token");
+  if (!token?.trim()) return null;
+
+  try {
+    const res = await fetch(apiUrl("/api/danisan/water"), {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ icilen, hedef }),
+    });
+
+    const body = await res.json().catch(() => ({}));
+
+    if (!res.ok || !body.water) {
+      return null;
     }
-  };
 
-  const addWater = () => {
-    setData((prev) => {
-      const hedef = prev.water.hedef || 8;
-      const icilen = Math.min((prev.water.icilen || 0) + 1, hedef);
-      persistWater(icilen, hedef);
-      return { ...prev, water: { icilen, hedef } };
-    });
-  };
+    return body.water;
+  } catch {
+    return null;
+  }
+};
 
-  const removeWater = () => {
-    setData((prev) => {
-      const hedef = prev.water.hedef || 8;
-      const icilen = Math.max((prev.water.icilen || 0) - 1, 0);
-      persistWater(icilen, hedef);
-      return { ...prev, water: { icilen, hedef } };
-    });
-  };
+  const addWater = async () => {
+  const mevcutHedef = data.water.hedef || 8;
+  const yeniIc = Math.min((data.water.icilen || 0) + 1, mevcutHedef);
+
+  setData((prev) => ({
+    ...prev,
+    water: {
+      icilen: yeniIc,
+      hedef: mevcutHedef,
+    },
+  }));
+
+  const savedWater = await persistWater(yeniIc, mevcutHedef);
+
+  if (savedWater) {
+    setData((prev) => ({
+      ...prev,
+      water: {
+        icilen: Number(savedWater.icilen) || 0,
+        hedef: Number(savedWater.hedef) || mevcutHedef,
+      },
+    }));
+  }
+};
+
+  const removeWater = async () => {
+  const mevcutHedef = data.water.hedef || 8;
+  const yeniIc = Math.max((data.water.icilen || 0) - 1, 0);
+
+  setData((prev) => ({
+    ...prev,
+    water: {
+      icilen: yeniIc,
+      hedef: mevcutHedef,
+    },
+  }));
+
+  const savedWater = await persistWater(yeniIc, mevcutHedef);
+
+  if (savedWater) {
+    setData((prev) => ({
+      ...prev,
+      water: {
+        icilen: Number(savedWater.icilen) || 0,
+        hedef: Number(savedWater.hedef) || mevcutHedef,
+      },
+    }));
+  }
+};
 
   const addGunlukKayit = async (newItem) => {
     const token = localStorage.getItem("token");
@@ -539,13 +580,16 @@ export default function DanisanPanel() {
           <PlanPage plans={nutritionPlans} loading={plansLoadState.loading} error={plansLoadState.err} />
         );
       case "gunluk":
-        return (
-          <GunlukTakipPage
-            kayitlar={data.gunlukKayitlar}
-            addGunlukKayit={addGunlukKayit}
-            deleteGunlukKayit={deleteGunlukKayit}
-          />
-        );
+  return (
+    <GunlukTakipPage
+      kayitlar={data.gunlukKayitlar}
+      addGunlukKayit={addGunlukKayit}
+      deleteGunlukKayit={deleteGunlukKayit}
+      water={data.water}
+      addWater={addWater}
+      removeWater={removeWater}
+    />
+  );
       case "su": return <SuTakipPage water={data.water} addWater={addWater} removeWater={removeWater} />;
       case "takas": return <BesinTakasiPage takasOnerileri={data.takasOnerileri} />;
       case "rapor": {
@@ -596,8 +640,12 @@ export default function DanisanPanel() {
                 Sunucu özeti alınamadı; yerel özet gösteriliyor. ({reportFetchErr})
               </div>
             ) : null}
-            {/* BAĞLANTI BURADA YAPILDI: kayitlar prop'u eklendi */}
-            <RaporPage rapor={merged} kayitlar={data.gunlukKayitlar} />
+            
+            <RaporPage
+  rapor={merged}
+  kayitlar={data.gunlukKayitlar}
+  water={data.water}
+/>
           </>
         );
       }

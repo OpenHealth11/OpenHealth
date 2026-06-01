@@ -21,7 +21,7 @@ function formatTrRange(fromStr, toStr) {
   }
 }
 
-function RaporPage({ rapor, kayitlar = [] }) {
+function RaporPage({ rapor, kayitlar = [], water }) {
   
   const { kaloriData, suData } = useMemo(() => {
     const rawKData = [];
@@ -29,7 +29,8 @@ function RaporPage({ rapor, kayitlar = [] }) {
     const guvenliKayitlar = Array.isArray(kayitlar) ? kayitlar : [];
 
     const bugun = new Date();
-    const bugunkuSu = parseInt(localStorage.getItem("gunlukSu") || 0);
+    const bugunkuSu = Number(water?.icilen) || 0;
+    console.log("Rapor water:", water, "bugunkuSu:", bugunkuSu);
 
     // Son 7 günü hesaplayıp listeye ekliyoruz
     for (let i = 6; i >= 0; i--) {
@@ -46,14 +47,8 @@ function RaporPage({ rapor, kayitlar = [] }) {
       rawSData.push({ gun: gunAdi, bardak: (i === 0) ? bugunkuSu : 0 });
     }
 
-    // --- PAZARTESİ'Yİ BAŞA ALAN SIRALAMA MANTIĞI ---
-    const gunSirasi = { "Pzt": 1, "Sal": 2, "Çar": 3, "Per": 4, "Cum": 5, "Cmt": 6, "Paz": 7 };
-
-    const siraliKalori = [...rawKData].sort((a, b) => gunSirasi[a.gun] - gunSirasi[b.gun]);
-    const siraliSu = [...rawSData].sort((a, b) => gunSirasi[a.gun] - gunSirasi[b.gun]);
-
-    return { kaloriData: siraliKalori, suData: siraliSu };
-  }, [kayitlar]);
+    return { kaloriData: rawKData, suData: rawSData };
+  }, [kayitlar,water]);
 
   if (!rapor) {
     return (
