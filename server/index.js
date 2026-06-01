@@ -36,6 +36,8 @@ import {
   getNotifications,
   createNotification,
   getDietitianUserIdByClientUserId,
+  getDailyTracking,
+  createDailyTracking,
 } from "./userRepositorySql.js";
 
 if (!process.env.JWT_SECRET) {
@@ -793,6 +795,66 @@ app.get("/api/notifications", async (req, res) => {
     });
   } catch (e) {
     console.error("[notifications]", e);
+
+    return res.status(500).json({
+      error: "Sunucu hatası.",
+    });
+  }
+});
+
+app.get("/api/daily-tracking", async (req, res) => {
+  try {
+    const user = await getUserFromAuthHeader(req);
+
+    if (!user) {
+      return res.status(401).json({
+        error: "Yetkisiz.",
+      });
+    }
+
+    const records = await getDailyTracking(user.id);
+
+    return res.json({
+      records,
+    });
+  } catch (e) {
+    console.error("[daily-tracking-get]", e);
+
+    return res.status(500).json({
+      error: "Sunucu hatası.",
+    });
+  }
+});
+
+app.post("/api/daily-tracking", async (req, res) => {
+  try {
+    const user = await getUserFromAuthHeader(req);
+
+    if (!user) {
+      return res.status(401).json({
+        error: "Yetkisiz.",
+      });
+    }
+
+    const { besin, kalori } = req.body ?? {};
+
+    if (!besin || !kalori) {
+      return res.status(400).json({
+        error: "Eksik veri.",
+      });
+    }
+
+    const record = await createDailyTracking(
+      user.id,
+      `${besin} - ${kalori} kcal`,
+      new Date()
+    );
+
+    return res.status(201).json({
+      record,
+    });
+  } catch (e) {
+    console.error("[daily-tracking-create]", e);
 
     return res.status(500).json({
       error: "Sunucu hatası.",
