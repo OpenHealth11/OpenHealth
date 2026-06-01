@@ -619,6 +619,34 @@ function encodeDailyTrackingNotes(payload) {
 }
 
 /** @returns {{ kind:'meal', besin, kalori, ogun } | { kind:'activity', aktivite, sure, yakilanKalori, not }} */
+
+function isCriticalDailyTracking(dec) {
+  if (!dec || dec.kind !== "meal") {
+    return false;
+  }
+
+  const kalori = Number(dec.kalori) || 0;
+  const metin = `${dec.besin ?? ""} ${dec.ogun ?? ""}`.toLocaleLowerCase("tr-TR");
+
+  const kritikKelimeler = [
+    "baş dönmesi",
+    "bas donmesi",
+    "bayıl",
+    "bayil",
+    "kus",
+    "ağrı",
+    "agri",
+    "fenalaş",
+    "fenalas",
+    "hiç yemedim",
+    "hic yemedim",
+  ];
+
+  return (
+    kalori <= 100 ||
+    kritikKelimeler.some((kelime) => metin.includes(kelime))
+  );
+}
 function decodeDailyTrackingNotes(raw) {
   if (!raw || typeof raw !== "string") {
     return { kind: "meal", besin: "", kalori: 0, ogun: "-" };
@@ -753,20 +781,25 @@ export async function insertDailyMealForClientUser(clientUserId, payload) {
   if (!row) return null;
   const dec = decodeDailyTrackingNotes(row.Notes);
   const client = await getUserById(uid);
-  if (client?.diyetisyenId) {
-    const label =
-      dec.kind === "activity"
-        ? `Aktivite: ${dec.aktivite}`
-        : `Öğün: ${dec.besin || dec.ogun}`;
-    await insertNotification({
-      userId: client.diyetisyenId,
-      title: "Yeni günlük kayıt",
-      message: `${client.fullName ?? "Danışan"} — ${label}`,
-      notificationType: "daily_tracking_added",
-      relatedEntityType: "DailyTracking",
-      relatedEntityId: row.TrackingID,
-    });
-  }
+ if (client?.diyetisyenId) {
+  const label =
+    dec.kind === "activity"
+      ? `Aktivite: ${dec.aktivite}`
+      : `Öğün: ${dec.besin || dec.ogun}`;
+
+  const isCritical = isCriticalDailyTracking(dec);
+
+  await insertNotification({
+    userId: client.diyetisyenId,
+    title: isCritical ? "Kritik günlük kayıt" : "Yeni günlük kayıt",
+    message: `${client.fullName ?? "Danışan"} — ${label}`,
+    notificationType: isCritical
+      ? "critical_daily_tracking"
+      : "daily_tracking_added",
+    relatedEntityType: "DailyTracking",
+    relatedEntityId: row.TrackingID,
+  });
+}
   if (dec.kind === "activity") {
     return {
       id: row.TrackingID,

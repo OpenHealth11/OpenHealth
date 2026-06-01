@@ -14,7 +14,7 @@ function Bildirimler({ bildirimler: propsBildirimler = [] }) {
       try {
         const token = localStorage.getItem("token");
         if (!token) {
-          if (!cancelled) setListe(propsSafe);
+          if (!cancelled) setListe([]);
           return;
         }
 
