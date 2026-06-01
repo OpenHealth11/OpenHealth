@@ -1,6 +1,6 @@
 import sql from "mssql";
 import { getPool } from "./db.js";
-import { getUserById } from "./userStore.js";
+import { getUserById, getClientsByDiyetisyenId } from "./userService.js";
 
 function normalizeText(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -15,31 +15,53 @@ function formatDate(value) {
   return value ? String(value).slice(0, 10) : null;
 }
 
+/** node-mssql / sürüme göre sütun adı büyük-küçük harf farklı gelebilir */
+function sqlColumn(row, name) {
+  if (!row || typeof row !== "object") return undefined;
+  if (Object.prototype.hasOwnProperty.call(row, name)) return row[name];
+  const lower = name.toLowerCase();
+  for (const k of Object.keys(row)) {
+    if (k.toLowerCase() === lower) return row[k];
+  }
+  return undefined;
+}
+
 function mapPlanRows(rows) {
   const map = new Map();
   for (const row of rows) {
-    const planId = row.PlanID;
+    const rawPid = sqlColumn(row, "PlanID");
+    const planId = Number(rawPid);
+    if (!Number.isFinite(planId)) continue;
+
     if (!map.has(planId)) {
       map.set(planId, {
         id: planId,
-        clientUserId: row.ClientUserID,
-        clientFullName: row.ClientFullName ?? "",
-        planAdi: row.PlanAdi,
-        baslangicTarihi: formatDate(row.BaslangicTarihi),
-        bitisTarihi: formatDate(row.BitisTarihi),
-        createdAt: row.CreatedAt instanceof Date ? row.CreatedAt.toISOString() : row.CreatedAt,
-        updatedAt:
-          row.UpdatedAt instanceof Date
-            ? row.UpdatedAt.toISOString()
-            : (row.UpdatedAt ?? (row.CreatedAt instanceof Date ? row.CreatedAt.toISOString() : row.CreatedAt)),
+        clientUserId: sqlColumn(row, "ClientUserID"),
+        clientFullName: sqlColumn(row, "ClientFullName") ?? "",
+        dietitianFullName: sqlColumn(row, "DietitianFullName") ?? "",
+        planAdi: sqlColumn(row, "PlanAdi"),
+        baslangicTarihi: formatDate(sqlColumn(row, "BaslangicTarihi")),
+        bitisTarihi: formatDate(sqlColumn(row, "BitisTarihi")),
+        createdAt: (() => {
+          const c = sqlColumn(row, "CreatedAt");
+          return c instanceof Date ? c.toISOString() : c;
+        })(),
+        updatedAt: (() => {
+          const u = sqlColumn(row, "UpdatedAt");
+          const c = sqlColumn(row, "CreatedAt");
+          if (u instanceof Date) return u.toISOString();
+          if (u != null) return u;
+          return c instanceof Date ? c.toISOString() : c;
+        })(),
         ogunler: [],
       });
     }
-    if (row.PlanOgunID != null) {
+    const pogunId = sqlColumn(row, "PlanOgunID");
+    if (pogunId != null) {
       map.get(planId).ogunler.push({
-        planOgunId: row.PlanOgunID,
-        gun: formatDate(row.Gun),
-        ogunler: row.Ogunler,
+        planOgunId: pogunId,
+        gun: formatDate(sqlColumn(row, "Gun")),
+        ogunler: sqlColumn(row, "Ogunler"),
       });
     }
   }
@@ -61,11 +83,13 @@ async function fetchPlans(whereClause, bind) {
       p.CreatedAt,
       p.UpdatedAt,
       cu.FullName AS ClientFullName,
+      du.FullName AS DietitianFullName,
       po.PlanOgunID,
       po.Gun,
       po.Ogunler
     FROM BeslenmePlani p
     INNER JOIN Users cu ON cu.UserID = p.ClientUserID
+    LEFT JOIN Users du ON du.UserID = p.DietitianUserID
     LEFT JOIN PlanOgun po ON po.PlanID = p.PlanID
     WHERE ${whereClause}
     ORDER BY p.PlanID DESC, po.Gun ASC, po.PlanOgunID ASC
@@ -99,9 +123,31 @@ async function assertClient(clientUserId) {
   return { ok: true, client };
 }
 
+/** Plan yalnızca bu diyetisyene atanmış ve aktif danışanlar için (onaylı eşleşme). */
+async function assertClientAssignedToDietitian(dietitianUserId, clientUserId) {
+  const base = await assertClient(clientUserId);
+  if (!base.ok) return base;
+
+  const mine = await getClientsByDiyetisyenId(dietitianUserId);
+  const row = mine.find((c) => Number(c.id) === Number(clientUserId));
+  if (!row) {
+    return { ok: false, code: "CLIENT_NOT_ASSIGNED" };
+  }
+  if ((row.durum ?? "").trim() !== "Aktif") {
+    return { ok: false, code: "CLIENT_NOT_ACTIVE" };
+  }
+  return base;
+}
+
 export async function listPlansByDietitian(dietitianUserId) {
   return fetchPlans("p.DietitianUserID = @dietitianUserId", (request) => {
     request.input("dietitianUserId", sql.Int, Number(dietitianUserId));
+  });
+}
+
+export async function listPlansByClient(clientUserId) {
+  return fetchPlans("p.ClientUserID = @clientUserId", (request) => {
+    request.input("clientUserId", sql.Int, Number(clientUserId));
   });
 }
 
@@ -117,7 +163,10 @@ export async function getPlanByDietitian(dietitianUserId, planId) {
 }
 
 export async function createPlanForDietitian(dietitianUserId, payload) {
-  const check = await assertClient(payload.clientUserId);
+  const check = await assertClientAssignedToDietitian(
+    dietitianUserId,
+    payload.clientUserId
+  );
   if (!check.ok) return check;
 
   const planAdi = normalizeText(payload.planAdi);
@@ -146,12 +195,15 @@ export async function createPlanForDietitian(dietitianUserId, payload) {
       .query(`
         INSERT INTO BeslenmePlani
           (DietitianUserID, ClientUserID, PlanAdi, BaslangicTarihi, BitisTarihi)
-        OUTPUT INSERTED.PlanID
         VALUES
-          (@dietitianUserId, @clientUserId, @planAdi, @baslangicTarihi, @bitisTarihi)
+          (@dietitianUserId, @clientUserId, @planAdi, @baslangicTarihi, @bitisTarihi);
+        SELECT CAST(SCOPE_IDENTITY() AS INT) AS PlanID;
       `);
 
-    const planId = inserted.recordset[0].PlanID;
+    const planId = inserted.recordset[0]?.PlanID;
+    if (planId == null) {
+      throw new Error("Plan oluşturulamadı.");
+    }
 
     for (const row of ogunler) {
       await new sql.Request(transaction)
@@ -182,7 +234,10 @@ export async function updatePlanForDietitian(dietitianUserId, planId, payload) {
 
   let clientUserId = existing.clientUserId;
   if (payload.clientUserId != null) {
-    const check = await assertClient(Number(payload.clientUserId));
+    const check = await assertClientAssignedToDietitian(
+      dietitianUserId,
+      Number(payload.clientUserId)
+    );
     if (!check.ok) return check;
     clientUserId = check.client.id;
   }
