@@ -10,12 +10,19 @@ import {
 } from "react-icons/fi";
 
 function DanisanDashboard({ data }) {
-  const toplamKalori = data.gunlukKayitlar.reduce(
-    (total, item) => total + item.kalori,
+  const kayitlar = Array.isArray(data?.gunlukKayitlar) ? data.gunlukKayitlar : [];
+  const ogunler = Array.isArray(data?.meals) ? data.meals : [];
+  const water = data?.water && typeof data.water === "object"
+    ? data.water
+    : { icilen: 0, hedef: 1 };
+  const user = data?.user && typeof data.user === "object" ? data.user : {};
+
+  const toplamKalori = kayitlar.reduce(
+    (total, item) => total + Number(item.kalori ?? 0),
     0
   );
 
-  const suYuzdesi = Math.min((data.water.icilen / data.water.hedef) * 100, 100);
+  const suYuzdesi = Math.min((water.icilen / (water.hedef || 1)) * 100, 100);
 
   return (
     <div className="page" style={{ animation: "fadeIn 0.5s ease-in-out" }}>
@@ -42,7 +49,7 @@ function DanisanDashboard({ data }) {
             <FiDroplet color="#0ea5e9" size={18} /> SU TAKİBİ
           </div>
           <p style={{ fontSize: "28px", fontWeight: "800", margin: "10px 0", color: "#1e4d3b" }}>
-            {data.water.icilen} / {data.water.hedef} <span style={{ fontSize: "14px", color: "#9ca3af", fontWeight: "400" }}>brdk</span>
+            {water.icilen} / {water.hedef} <span style={{ fontSize: "14px", color: "#9ca3af", fontWeight: "400" }}>brdk</span>
           </p>
           <div style={{ width: "100%", height: "8px", backgroundColor: "#f1f5f9", borderRadius: "10px", overflow: "hidden" }}>
             <div style={{ width: `${suYuzdesi}%`, height: "100%", backgroundColor: "#0ea5e9", transition: "width 0.5s ease-out" }} />
@@ -54,7 +61,7 @@ function DanisanDashboard({ data }) {
             <FiTrendingUp color="#10b981" size={18} /> MEVCUT KİLO
           </div>
           <p style={{ fontSize: "28px", fontWeight: "800", margin: "10px 0", color: "#1e4d3b" }}>
-            {data.user.kilo || "-"} <span style={{ fontSize: "14px", color: "#9ca3af", fontWeight: "400" }}>kg</span>
+            {user.kilo || "-"} <span style={{ fontSize: "14px", color: "#9ca3af", fontWeight: "400" }}>kg</span>
           </p>
         </div>
 
@@ -63,7 +70,7 @@ function DanisanDashboard({ data }) {
             <FiTarget color="#8b5cf6" size={18} /> HEDEF KİLO
           </div>
           <p style={{ fontSize: "28px", fontWeight: "800", margin: "10px 0", color: "#1e4d3b" }}>
-            {data.user.hedef || "-"} <span style={{ fontSize: "14px", color: "#9ca3af", fontWeight: "400" }}>kg</span>
+            {user.hedef || "-"} <span style={{ fontSize: "14px", color: "#9ca3af", fontWeight: "400" }}>kg</span>
           </p>
         </div>
       </div>
@@ -79,7 +86,7 @@ function DanisanDashboard({ data }) {
             <FiClock color="#10b981" /> Bugünkü Öğün Planı
           </h3>
           <div className="list" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-            {data.meals.map((meal) => (
+            {ogunler.map((meal) => (
               <div className="list-item" key={meal.id} style={{ 
                 padding: "15px", 
                 backgroundColor: "#f8fafc", 
@@ -106,7 +113,7 @@ function DanisanDashboard({ data }) {
             <FiPlusSquare color="#3b82f6" /> Son Günlük Kayıtlar
           </h3>
           <div className="list" style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-            {data.gunlukKayitlar.slice(-4).reverse().map((item) => (
+            {kayitlar.slice(-4).reverse().map((item) => (
               <div className="list-item" key={item.id} style={{ 
                 padding: "15px", 
                 backgroundColor: "#f8fafc", 
