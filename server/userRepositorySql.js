@@ -210,9 +210,11 @@ export async function getDailyTracking(userId) {
     .input("userId", sql.Int, userId)
     .query(`
       SELECT
-        TrackingID,
-        Notes,
-        RecordDate
+      TrackingID,
+      Notes,
+      RecordDate,
+      Durum,
+      DietitianNote
       FROM DailyTracking
       WHERE ClientID = @userId
       ORDER BY RecordDate DESC, TrackingID DESC
@@ -259,7 +261,9 @@ export async function getDailyTrackingForDietitian(dietitianUserId) {
         dt.TrackingID,
         u.FullName,
         dt.Notes,
-        dt.RecordDate
+        dt.RecordDate,
+        dt.Durum,
+        dt.DietitianNote
       FROM DailyTracking dt
       INNER JOIN Clients c
         ON c.ClientID = dt.ClientID
@@ -324,4 +328,28 @@ export async function getDailyTrackingFeedback(trackingId) {
     `);
 
   return result.recordset;
+} 
+
+export async function updateDailyTrackingStatus(
+  trackingId,
+  status,
+  dietitianNote = null
+) {
+  const pool = await getPool();
+
+  const result = await pool
+    .request()
+    .input("trackingId", sql.Int, trackingId)
+    .input("status", sql.NVarChar(30), status)
+    .input("dietitianNote", sql.NVarChar(sql.MAX), dietitianNote)
+    .query(`
+      UPDATE DailyTracking
+      SET
+        Durum = @status,
+        DietitianNote = @dietitianNote
+      OUTPUT INSERTED.*
+      WHERE TrackingID = @trackingId
+    `);
+
+  return result.recordset[0];
 }

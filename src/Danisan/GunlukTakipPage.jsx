@@ -238,6 +238,15 @@ function GunlukTakipPage({ kayitlar, addGunlukKayit, deleteGunlukKayit }) {
                     <span style={{ color: "#10b981", fontSize: "14px", fontWeight: "700" }}>
                       {item.kalori} kcal
                     </span>
+                     <p>
+                    <strong>Durum:</strong> {item.durum || "Takipte"}
+                     </p>
+                     {item.dietitianNote && (
+                     <p>
+                     <strong>Diyetisyen Notu:</strong>{" "}
+                     {item.dietitianNote}
+                     </p>
+                     )}             
                      {feedbacks[item.id]?.length > 0 && (
                       <div
                       style={{

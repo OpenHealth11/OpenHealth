@@ -5,6 +5,7 @@ function GunlukTakip({ gunlukKayitlar = [] }) {
   const [secilenTarih, setSecilenTarih] = useState("");
   const [secilenKayit, setSecilenKayit] = useState(null);
   const [feedbackText, setFeedbackText] = useState("");
+  const [statusNote, setStatusNote] = useState("");
 
   const danisanIsimleri = [
     "Tümü",
@@ -194,6 +195,87 @@ function GunlukTakip({ gunlukKayitlar = [] }) {
     marginBottom: "12px",
   }}
 />
+
+<h4>Günlük Kayıt Durumu</h4>
+
+<textarea
+  value={statusNote}
+  onChange={(e) => setStatusNote(e.target.value)}
+  rows={3}
+  placeholder="Onay / red notu..."
+  style={{
+    width: "100%",
+    marginBottom: "12px",
+  }}
+/>
+
+<div
+  style={{
+    display: "flex",
+    gap: "10px",
+    marginBottom: "12px",
+  }}
+>
+  <button
+    className="dy-primary-btn"
+    onClick={async () => {
+      const token = localStorage.getItem("token");
+
+      const response = await fetch(
+        `/api/diyetisyen/daily-tracking/${secilenKayit.id}/status`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            status: "Onaylandı",
+            note: statusNote,
+          }),
+        }
+      );
+
+      if (response.ok) {
+        alert("Kayıt onaylandı.");
+      } else {
+        alert("İşlem başarısız.");
+      }
+    }}
+  >
+    Onayla
+  </button>
+
+  <button
+    className="dy-secondary-btn"
+    onClick={async () => {
+      const token = localStorage.getItem("token");
+
+      const response = await fetch(
+        `/api/diyetisyen/daily-tracking/${secilenKayit.id}/status`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            status: "Reddedildi",
+            note: statusNote,
+          }),
+        }
+      );
+
+      if (response.ok) {
+        alert("Kayıt reddedildi.");
+      } else {
+        alert("İşlem başarısız.");
+      }
+    }}
+  >
+    Reddet
+  </button>
+</div>
 
 <button
   className="dy-primary-btn"

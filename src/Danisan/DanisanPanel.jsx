@@ -84,14 +84,16 @@ export default function DanisanPanel() {
         gunlukKayitlar: result.records.map((r) => {
           const parts = (r.Notes || "").split(" - ");
 
-          return {
-            id: r.TrackingID,
-            besin: parts[0] || "",
-            kalori: Number(
-              (parts[1] || "0").replace(" kcal", "")
-            ),
-          };
-        }),
+            return {
+              id: r.TrackingID,
+              besin: parts[0] || "",
+              kalori: Number(
+                (parts[1] || "0").replace(" kcal", "")
+              ),
+              durum: r.Durum,
+              dietitianNote: r.dietitianNote,
+            };
+          }),
       }));
     } catch (err) {
       console.error("Daily tracking yüklenemedi", err);

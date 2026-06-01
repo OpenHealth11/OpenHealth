@@ -41,6 +41,7 @@ import {
   getDailyTrackingForDietitian,
   createDailyTrackingFeedback,
   getDailyTrackingFeedback,
+  updateDailyTrackingStatus,
 } from "./userRepositorySql.js";
 
 if (!process.env.JWT_SECRET) {
@@ -949,6 +950,43 @@ app.get("/api/daily-tracking/:id/feedback", async (req, res) => {
     });
   }
 });
+
+app.post(
+  "/api/diyetisyen/daily-tracking/:id/status",
+  async (req, res) => {
+    try {
+      const user = await requireDiyetisyen(req, res);
+
+      if (!user) {
+        return;
+      }
+
+      const { status, note } = req.body ?? {};
+
+      if (!status) {
+        return res.status(400).json({
+          error: "Durum gerekli.",
+        });
+      }
+
+      const record = await updateDailyTrackingStatus(
+        Number(req.params.id),
+        status,
+        note || null
+      );
+
+      return res.json({
+        record,
+      });
+    } catch (e) {
+      console.error("[daily-tracking-status]", e);
+
+      return res.status(500).json({
+        error: "Sunucu hatası.",
+      });
+    }
+  }
+);
 
 app.get("/", (_req, res) => {
   res.type("html").send(`<!DOCTYPE html>
