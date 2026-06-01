@@ -25,11 +25,18 @@ function AuthPage({
   }, [authMode, role]);
 
   useEffect(() => {
-    const flash = sessionStorage.getItem("authFlash");
-    if (!flash) return;
+  const flash = sessionStorage.getItem("authFlash");
+  if (flash) {
     sessionStorage.removeItem("authFlash");
     setAuthError(flash);
-  }, []);
+  }
+
+  const notice = sessionStorage.getItem("registerNotice");
+  if (notice) {
+    sessionStorage.removeItem("registerNotice");
+    setRegisterNotice(notice);
+  }
+}, []);
 
   function messageFromBody(status, raw) {
     try {
@@ -187,18 +194,21 @@ function AuthPage({
         setPasswordConfirm("");
         setFullName("");
       } else {
-        setRegisterNotice(
-          typeof data.message === "string"
-            ? data.message
-            : "Kaydınız alındı. Hesabınız admin onayından sonra aktif olacak."
-        );
+         const notice =
+  typeof data.message === "string"
+    ? data.message
+    : "Kaydınız alındı. Hesabınız admin onayından sonra aktif olacak.";
 
-        switchMode("login");
-        setRole("");
-        setPassword("");
-        setPasswordConfirm("");
-        setFullName("");
-        setEmail("");
+sessionStorage.setItem("registerNotice", notice);
+
+setRegisterNotice(notice);
+setAuthError("");
+
+switchMode("login");
+setRole(role);
+setPassword("");
+setPasswordConfirm("");
+setFullName("");
       }
     } catch {
       setAuthError(
@@ -427,6 +437,10 @@ function AuthPage({
                     ? "Diyetisyen hesabınız ile sisteme giriş yapınız."
                     : "Diyetisyen hesabı oluşturunuz."}
                 </p>
+
+                {registerNotice && authMode === "login" ? (
+  <p className="auth-success">{registerNotice}</p>
+) : null}
 
                 {authError ? <p className="auth-error">{authError}</p> : null}
 
