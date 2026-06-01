@@ -121,7 +121,7 @@ export default function PlanYonetimi({ onPlansChanged }) {
       setLoadState({ loading: true, err: "" });
       try {
         const [dRes, pRes] = await Promise.all([
-          fetch("/api/diyetisyen/danisanlar", { headers: authHeaders() }),
+          fetch("/api/diyetisyen/clients", { headers: authHeaders() }),
           fetch("/api/diyetisyen/plans", { headers: authHeaders() }),
         ]);
         if (!dRes.ok || !pRes.ok) {
@@ -135,7 +135,8 @@ export default function PlanYonetimi({ onPlansChanged }) {
         const dJson = await dRes.json();
         const pJson = await pRes.json();
         if (cancelled) return;
-        setDanisanlar(dJson.danisanlar || []);
+        const clients = Array.isArray(dJson.clients) ? dJson.clients : [];
+        setDanisanlar(clients.filter((c) => (c.durum ?? "").trim() === "Aktif"));
         const list = pJson.plans || [];
         setPlans(list);
         onPlansChanged?.(list);
@@ -340,7 +341,7 @@ export default function PlanYonetimi({ onPlansChanged }) {
             >
               <option value="">
                 {danisanlar.length === 0
-                  ? "Onaylı danışan yok"
+                  ? "Atanmış aktif danışan yok"
                   : "Danışan seçin"}
               </option>
               {danisanlar.map((d) => (
@@ -520,7 +521,7 @@ export default function PlanYonetimi({ onPlansChanged }) {
               const toplam = meta?.toplamKalori ?? 0;
               const su = meta?.suHedefi ?? "-";
               return (
-                <div className="dy-list-item" key={plan.id}>
+                <div className="dy-plan-item" key={plan.id}>
                   <div>
                     <strong>{plan.planAdi}</strong>
                     <p>Danışan: {plan.clientFullName || `#${plan.clientUserId}`}</p>

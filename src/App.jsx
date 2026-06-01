@@ -11,6 +11,7 @@ import HomePage from "./HomePage";
 import AuthPage from "./AuthPage";
 import DanisanPanel from "./Danisan/DanisanPanel";
 import DiyetisyenPanel from "./Diyetisyen/DiyetisyenPanel";
+import AdminDietitianApproval from "./AdminDietitianApproval";
 
 function getUserFromStorage() {
   try {
@@ -47,18 +48,20 @@ function LoginRoute() {
   const token = localStorage.getItem("token");
   const user = getUserFromStorage();
 
-  if (token && user?.role === "danisan") {
-    return <Navigate to="/danisan-panel" replace />;
-  }
+  // Kayıt ekranı açıkken oturumlu kullanıcıyı panele atma (panel çökünce "boş sayfa" gibi görünür)
+  if (authMode !== "register") {
+    if (token && user?.role === "danisan") {
+      return <Navigate to="/danisan-panel" replace />;
+    }
 
-  if (token && user?.role === "diyetisyen") {
-    return <Navigate to="/diyetisyen-panel" replace />;
+    if (token && user?.role === "diyetisyen") {
+      return <Navigate to="/diyetisyen-panel" replace />;
+    }
   }
 
   const switchMode = (mode) => {
-    setRole("");
-
     if (mode === "register") {
+      setRole("");
       setSearchParams({ mode: "register" });
     } else {
       setSearchParams({});
@@ -92,11 +95,22 @@ function App() {
     <Routes>
       <Route path="/" element={<HomePage />} />
       <Route path="/login" element={<LoginRoute />} />
+      <Route path="/admin/diyetisyen-onay" element={<AdminDietitianApproval />} />
       <Route
-        path="/diyetisyen-panel" element={<DiyetisyenPanel />}
+        path="/diyetisyen-panel"
+        element={
+          <ProtectedRoute allowedRole="diyetisyen">
+            <DiyetisyenPanel />
+          </ProtectedRoute>
+        }
       />
       <Route
-         path="/danisan-panel" element={<DanisanPanel />} 
+        path="/danisan-panel"
+        element={
+          <ProtectedRoute allowedRole="danisan">
+            <DanisanPanel />
+          </ProtectedRoute>
+        }
       />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
