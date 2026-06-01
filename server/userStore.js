@@ -1,6 +1,8 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { buildWeeklyReportSummary } from "./reportSummary.js";
+import { resolveDailyTrackingKind } from "./dailyTrackingKind.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = path.join(__dirname, "data");
@@ -48,6 +50,20 @@ export function listApprovedDanisanlar() {
     }));
 }
 
+export function listApprovedDietitians() {
+  const { users } = loadDb();
+  return users
+    .filter(
+      (u) =>
+        u.role === "diyetisyen" && (u.status ?? "approved") === "approved"
+    )
+    .map((u) => ({
+      id: u.id,
+      fullName: u.fullName,
+      email: u.email,
+    }));
+}
+
 export function createUser({ fullName, email, passwordHash, role }) {
   const db = loadDb();
   if (db.users.some((u) => u.email.toLowerCase() === email.toLowerCase())) {
@@ -63,7 +79,6 @@ export function createUser({ fullName, email, passwordHash, role }) {
   role,
   status,
   
-  yas: "",
   sonGorusme: "",
   durum: "Pasif",
   diyetisyenId: null,
@@ -83,6 +98,7 @@ export function createUser({ fullName, email, passwordHash, role }) {
   sigaraAlkol: "",
   saglikNotu: "",
   measurements: [],
+  dailyTracking: [],
   createdAt: new Date().toISOString(),
 };
   db.users.push(user);
@@ -176,6 +192,11 @@ export function updateUserProfile(userId, profileData) {
     ? profileData.hastalik.trim()
     : user.hastalik;
 
+  user.kullanilanIlaclar =
+    typeof profileData.kullanilanIlaclar === "string"
+      ? profileData.kullanilanIlaclar.trim()
+      : user.kullanilanIlaclar;
+
   user.updatedAt = new Date().toISOString();
 
   saveDb(db);
@@ -228,7 +249,6 @@ export function updateUserHealthInfo(userId, healthData) {
   saveDb(db);
   return user;
 }
-
 
 export function getClientsByDiyetisyenId(diyetisyenId) {
   const db = loadDb();
@@ -307,4 +327,208 @@ export function createRequest(danisanId, diyetisyenId) {
   saveDb(db);
 
   return yeniTalep;
+}
+
+const ADMIN_ACCOUNT_STATUSES = new Set(["approved", "rejected", "pending"]);
+
+export function listPendingDietitianAccounts() {
+  const { users } = loadDb();
+  return users
+    .filter(
+      (u) =>
+        u.role === "diyetisyen" && (u.status ?? "approved") === "pending"
+    )
+    .map((u) => ({
+      id: u.id,
+      email: u.email,
+      fullName: u.fullName,
+      status: u.status ?? "pending",
+      createdAt: u.createdAt ?? "",
+    }))
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+}
+
+export function setDietitianAccountStatus(userId, statusCode) {
+  if (!ADMIN_ACCOUNT_STATUSES.has(statusCode)) return null;
+  const db = loadDb();
+  const user = db.users.find(
+    (u) => u.role === "diyetisyen" && Number(u.id) === Number(userId)
+  );
+  if (!user) return null;
+  user.status = statusCode;
+  user.updatedAt = new Date().toISOString();
+  saveDb(db);
+  return user;
+}
+
+function filterDailyByRange(entries, range = {}) {
+  let list = Array.isArray(entries) ? [...entries] : [];
+  if (range.from && typeof range.from === "string") {
+    list = list.filter((e) => (e.tarih ?? "") >= range.from.slice(0, 10));
+  }
+  if (range.to && typeof range.to === "string") {
+    list = list.filter((e) => (e.tarih ?? "") <= range.to.slice(0, 10));
+  }
+  list.sort(
+    (a, b) =>
+      String(b.tarih ?? "").localeCompare(String(a.tarih ?? "")) ||
+      (Number(b.id) || 0) - (Number(a.id) || 0)
+  );
+  return list;
+}
+
+/** @param {{ from?: string, to?: string }} [range] */
+export function listDailyTrackingForClientUser(userId, range = {}) {
+  const user = getUserById(userId);
+  if (!user || user.role !== "danisan") return [];
+  const entries = Array.isArray(user.dailyTracking) ? user.dailyTracking : [];
+  const normalized = entries.map((e) =>
+    e.kind === "activity" ? e : { ...e, kind: "meal" }
+  );
+  return filterDailyByRange(normalized, range);
+}
+
+export function insertDailyMealForClientUser(userId, payload) {
+  const db = loadDb();
+  const user = db.users.find((u) => Number(u.id) === Number(userId));
+  if (!user || user.role !== "danisan") return null;
+  if (!Array.isArray(user.dailyTracking)) user.dailyTracking = [];
+
+  const tarih =
+    typeof payload.tarih === "string" && payload.tarih.trim()
+      ? payload.tarih.trim().slice(0, 10)
+      : new Date().toISOString().slice(0, 10);
+
+  if (resolveDailyTrackingKind(payload) === "activity") {
+    const aktivite = String(payload.aktivite ?? "").trim();
+    const sure = Number(payload.sure);
+    if (!aktivite || !Number.isFinite(sure) || sure <= 0) return null;
+    const entry = {
+      id: Date.now(),
+      kind: "activity",
+      tarih,
+      aktivite,
+      sure,
+      yakilanKalori: Math.max(0, Number(payload.yakilanKalori) || 0),
+      not: String(payload.not ?? "").trim(),
+    };
+    user.dailyTracking.push(entry);
+    user.updatedAt = new Date().toISOString();
+    saveDb(db);
+    return entry;
+  }
+
+  const besin = String(payload.besin ?? "").trim();
+  const kalori = Number(payload.kalori);
+  const ogun = String(payload.ogun ?? "").trim() || "Öğün";
+  if (!besin || !Number.isFinite(kalori) || kalori < 0) return null;
+
+  const entry = {
+    id: Date.now(),
+    kind: "meal",
+    besin,
+    kalori,
+    ogun,
+    tarih,
+  };
+  user.dailyTracking.push(entry);
+  user.updatedAt = new Date().toISOString();
+  saveDb(db);
+  return entry;
+}
+
+export function deleteDailyMealForClientUser(userId, trackingId) {
+  const db = loadDb();
+  const user = db.users.find((u) => Number(u.id) === Number(userId));
+  if (!user || user.role !== "danisan") return false;
+  if (!Array.isArray(user.dailyTracking)) user.dailyTracking = [];
+
+  const tid = Number(trackingId);
+  const idx = user.dailyTracking.findIndex((e) => Number(e.id) === tid);
+  if (idx === -1) return false;
+  user.dailyTracking.splice(idx, 1);
+  user.updatedAt = new Date().toISOString();
+  saveDb(db);
+  return true;
+}
+
+/** @param {{ from?: string, to?: string }} [range] */
+export function listDailyTrackingForDietitianUser(diyetisyenUserId, range = {}) {
+  const clients = getClientsByDiyetisyenId(Number(diyetisyenUserId));
+  const out = [];
+  for (const c of clients) {
+    const entries = listDailyTrackingForClientUser(c.id, range);
+    for (const e of entries) {
+      const kind = e.kind === "activity" ? "activity" : "meal";
+      if (kind === "activity") {
+        out.push({
+          id: e.id,
+          danisanAdi: c.fullName ?? "",
+          tarih: e.tarih,
+          kind: "activity",
+          ogun: "Aktivite",
+          detay: e.aktivite ?? "",
+          kalori: 0,
+          aktiviteSure: e.sure,
+          yakilanKalori: e.yakilanKalori ?? 0,
+          not: e.not ?? "",
+          su: 0,
+          durum: "Takipte",
+        });
+      } else {
+        out.push({
+          id: e.id,
+          danisanAdi: c.fullName ?? "",
+          tarih: e.tarih,
+          kind: "meal",
+          detay: e.besin,
+          ogun: e.ogun,
+          kalori: e.kalori,
+          su: 0,
+          durum: "Takipte",
+          not: "",
+        });
+      }
+    }
+  }
+  out.sort(
+    (a, b) =>
+      String(b.tarih ?? "").localeCompare(String(a.tarih ?? "")) ||
+      (Number(b.id) || 0) - (Number(a.id) || 0)
+  );
+  return out;
+}
+
+export function getWeeklyReportSummaryForClientUser(userId, opts = {}) {
+  const daysWindow = Math.min(Math.max(Number(opts.days) || 7, 1), 90);
+  const end = new Date();
+  end.setHours(12, 0, 0, 0);
+  const start = new Date(end);
+  start.setDate(start.getDate() - (daysWindow - 1));
+  const pad = (n) => String(n).padStart(2, "0");
+  const isoLocal = (d) =>
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const fromStr = isoLocal(start);
+  const toStr = isoLocal(end);
+
+  const entries = listDailyTrackingForClientUser(userId, { from: fromStr, to: toStr });
+  const allMeas = getUserMeasurements(userId);
+  const measurements = (allMeas || []).filter((m) => {
+    const t = (m.tarih ?? "").slice(0, 10);
+    return t >= fromStr && t <= toStr;
+  });
+  const user = getUserById(userId);
+  const core = buildWeeklyReportSummary({
+    entries,
+    measurements,
+    profileKilo: user?.kilo,
+    profileHedef: user?.hedef,
+    daysWindow,
+  });
+  return {
+    ...core,
+    periodFrom: fromStr,
+    periodTo: toStr,
+    days: daysWindow,
+  };
 }
