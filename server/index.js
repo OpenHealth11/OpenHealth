@@ -50,6 +50,7 @@ import {
   deletePlanOgun,
   deletePlanByDietitian,
 } from "./planStore.js";
+import { searchFoodsFromFatSecret } from "./fatsecretService.js";
 
 if (!process.env.JWT_SECRET) {
   throw new Error("JWT_SECRET missing");
@@ -763,6 +764,30 @@ app.get("/api/diyetisyen/daily-tracking", async (req, res) => {
   } catch (e) {
     console.error("[diyetisyen-daily-tracking-get]", e);
     return res.status(500).json({ error: "Sunucu hatası." });
+  }
+});
+
+app.get("/api/foods/search", async (req, res) => {
+  try {
+    const query = String(req.query.q || "").trim();
+
+    if (!query) {
+      return res.status(400).json({
+        error: "Arama kelimesi zorunludur.",
+      });
+    }
+
+    const foods = await searchFoodsFromFatSecret(query, 12);
+
+    return res.json({
+      foods,
+    });
+  } catch (e) {
+    console.error("[foods-search]", e);
+
+    return res.status(500).json({
+      error: "Besin araması yapılırken hata oluştu.",
+    });
   }
 });
 

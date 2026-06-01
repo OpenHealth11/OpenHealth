@@ -112,6 +112,38 @@ function BesinTakasPage() {
   const [seciliTakas, setSeciliTakas] = useState(null);
   const [aramaKelimesi, setAramaKelimesi] = useState("");
   const [kategori, setKategori] = useState("Tümü");
+  const [fatsecretFoods, setFatsecretFoods] = useState([]);
+  const [fatsecretLoading, setFatsecretLoading] = useState(false);
+  const [fatsecretError, setFatsecretError] = useState("");
+
+  const searchFatSecretFoods = async () => {
+  const query = aramaKelimesi.trim();
+
+  if (!query) {
+    setFatsecretFoods([]);
+    setFatsecretError("");
+    return;
+  }
+
+  setFatsecretLoading(true);
+  setFatsecretError("");
+
+  try {
+    const res = await fetch(`/api/foods/search?q=${encodeURIComponent(query)}`);
+    const data = await res.json();
+
+    if (!res.ok) {
+      setFatsecretError(data.error || "Besin araması yapılamadı.");
+      return;
+    }
+
+    setFatsecretFoods(data.foods || []);
+  } catch {
+    setFatsecretError("Sunucuya bağlanılamadı.");
+  } finally {
+    setFatsecretLoading(false);
+  }
+};
 
   const toplamKaloriTasarrufu = takasOnerileri.reduce((toplam, item) => {
     const eskiKalori = Number(item.eskiKalori || 0);
@@ -160,7 +192,23 @@ function BesinTakasPage() {
               style={styles.input}
             />
           </div>
-
+           
+            <button
+    type="button"
+    onClick={searchFatSecretFoods}
+    style={{
+      padding: "12px 18px",
+      borderRadius: "12px",
+      border: "none",
+      backgroundColor: "#10b981",
+      color: "white",
+      fontWeight: "700",
+      cursor: "pointer",
+    }}
+  >
+    FatSecret'te Ara
+  </button>
+            
           <div style={styles.inputBox}>
             <FiFilter style={styles.inputIcon} />
             <select
@@ -203,6 +251,54 @@ function BesinTakasPage() {
           text="Toplam fark"
         />
       </div>
+
+      {(fatsecretLoading || fatsecretError || fatsecretFoods.length > 0) && (
+  <div
+    className="card"
+    style={{
+      padding: "25px",
+      borderRadius: "20px",
+      backgroundColor: "white",
+      boxShadow: "0 10px 15px -3px rgba(0,0,0,0.05)",
+      marginBottom: "25px",
+    }}
+  >
+    <h3 style={styles.sectionTitle}>FatSecret Besin Sonuçları</h3>
+
+    {fatsecretLoading && (
+      <p style={{ color: "#64748b", fontWeight: "600" }}>
+        Aranıyor...
+      </p>
+    )}
+
+    {fatsecretError && (
+      <p style={{ color: "#ef4444", fontWeight: "600" }}>
+        {fatsecretError}
+      </p>
+    )}
+
+    {!fatsecretLoading && !fatsecretError && fatsecretFoods.length > 0 && (
+      <div style={{ display: "grid", gap: "12px" }}>
+        {fatsecretFoods.map((food) => (
+          <div
+            key={food.id}
+            style={{
+              padding: "14px 16px",
+              borderRadius: "14px",
+              backgroundColor: "#f8fafc",
+              border: "1px solid #e2e8f0",
+            }}
+          >
+            <strong style={{ color: "#1e4d3b" }}>{food.name}</strong>
+            <p style={{ margin: "6px 0 0", color: "#64748b" }}>
+              {food.description || "Açıklama bulunamadı."}
+            </p>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+)}
 
       <div style={styles.mainGrid}>
         <div style={styles.leftPanel}>
